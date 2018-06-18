@@ -10,7 +10,7 @@
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
          make-datatype make-opaque-datatype make-hashof make-parameterof
          to-contract to-expression
-         create-defn as-non-poly
+         create-defn as-non-poly get-defn-tvars
          make-poly poly? poly-instance at-source instantiate-constructor-at
          unify! unify-defn!
          let-based-poly!
@@ -38,7 +38,14 @@
 (define-struct (datatype type) (id args))
 (define-struct (opaque-datatype datatype) (pred))
 (define-struct (poly type) (tvar type) #:transparent)
-(define-struct (defn type) (base rhs poly-context [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
+(define-struct (defn type) (base rhs poly-context [insts #:mutable] [proto-rhs #:mutable] base-tvars tvars) #:transparent)
+(define-struct (non-poly-defn type) (base tvars) #:transparent)
+
+(define (get-defn-tvars t)
+  (cond
+    [(defn? t) (defn-tvars t)]
+    [(non-poly-defn? t) (non-poly-defn-tvars t)]
+    [else null]))
 
 (define (to-contract type enforce-poly?)
   (let loop ([type type]
@@ -47,10 +54,10 @@
              [inside-mutable? #f])
     (cond
      [(defn? type) 
-      ;; is this the right thing?
       (if (defn-rhs type)
           (loop (defn-rhs type) tvar-names contra? inside-mutable?)
           (loop (car (defn-proto-rhs type)) tvar-names contra? inside-mutable?))]
+     [(non-poly-defn? type) (loop (non-poly-defn-base type) tvar-names contra? inside-mutable?)]
      [(bool? type) #'boolean?]
      [(num? type) #'number?]
      [(sym? type) #'symbol?]
@@ -95,10 +102,10 @@
   (let loop ([type type])
     (cond
      [(defn? type) 
-      ;; is this the right thing?
       (if (defn-rhs type)
           (loop (defn-rhs type))
           (loop (car (defn-proto-rhs type))))]
+     [(non-poly-defn? type) (loop (non-poly-defn-base type))]
      [(bool? type) #'(make-bool #f)]
      [(num? type) #'(make-num #f)]
      [(sym? type) #'(make-sym #f)]
@@ -196,6 +203,7 @@
    [(poly? t) ((type->datum tmap) ((instance (poly-tvar t)
                                              (gen-tvar 'poly))
                                    (poly-type t)))]
+   [(non-poly-defn? t) ((type->datum tmap) (non-poly-defn-base t))]
    [else (format "?~s" t)]))
 
 (define (non-poly! t poly-context)
@@ -243,9 +251,9 @@
      [(datatype? t) (for-each loop (datatype-args t))]
      [(poly? t) (loop (poly-type t))])))
 
-(define (as-non-poly t poly-context)
+(define (as-non-poly t poly-context tvars)
   (non-poly! t poly-context)
-  t)
+  (non-poly-defn (type-src t) t tvars))
 
 (define ((instance old-tvar new-tvar) t)
   (cond
@@ -288,7 +296,7 @@
                                           (datatype-args t))))]
    [else t]))
 
-(define (extract-tvars t poly-context)
+(define (extract-tvars t poly-context base-tvars)
   (let ([tvars
          (let loop ([t t])
            (cond
@@ -300,7 +308,10 @@
                                                                       (- c2 c1))))
                                  (list t)
                                  null))
-                           (list t))]
+                           (if (for/or ([p (in-list base-tvars)])
+                                 (eq? t (cdr p)))
+                               null
+                               (list t)))]
             [(arrow? t)
              (append (loop (arrow-result t))
                      (apply append
@@ -337,6 +348,8 @@
           ;; Remember this instance to check the type later:
           (set-defn-insts! t (cons (cons #f inst) (defn-insts t)))
           inst))]
+   [(non-poly-defn? t)
+    (poly-instance (non-poly-defn-base t))]
    [(tvar? t)
     (let ([t (simplify! t)])
       (if (poly? t)
@@ -369,17 +382,19 @@
                   (cdr orig)
                   (cdr new))))])))
 
-(define (create-defn t poly-context)
-  (let ([p (poly-ize t poly-context)])
+(define (create-defn t poly-context base-tvars tvars)
+  (let ([p (poly-ize t poly-context base-tvars)])
     (make-defn (type-src t)
                p
                (if (poly? p) #f p)
                poly-context
                null
-               #f)))
+               #f
+               base-tvars
+               tvars)))
 
-(define (poly-ize t [poly-context '()])
-  (let loop ([tvars (extract-tvars t poly-context)] [t t])
+(define (poly-ize t poly-context base-tvars)
+  (let loop ([tvars (extract-tvars t poly-context base-tvars)] [t t])
     (cond
      [(null? tvars) t]
      [else (loop (cdr tvars)
@@ -568,25 +583,28 @@
              (set-type-src! r (list a srcs)))])))
 
 (define (simplify! a)
-  (if (tvar? a)
-      (let ([r (let loop ([a a])
-                 (if (and (tvar? a)
-                          (tvar-rep a))
-                     (loop (tvar-rep a))
-                     a))])
-        (let ([r (if (tvar? r)
-                     r
-                     ;; clone it so we can set the location
-                     (clone r))])
-          (let loop ([a a])
-            (unless (or (eq? r a)
-                        (not (tvar? a)))
-              (let ([r2 (tvar-rep a)])
-                (set-tvar-rep! a r)
-                (add-srcs! r a)
-                (loop r2)))))
-        r)
-      a))
+  (cond
+    [(tvar? a)
+     (let ([r (let loop ([a a])
+                (if (and (tvar? a)
+                         (tvar-rep a))
+                    (loop (tvar-rep a))
+                    a))])
+       (let ([r (if (tvar? r)
+                    r
+                    ;; clone it so we can set the location
+                    (clone r))])
+         (let loop ([a a])
+           (unless (or (eq? r a)
+                       (not (tvar? a)))
+             (let ([r2 (tvar-rep a)])
+               (set-tvar-rep! a r)
+               (add-srcs! r a)
+               (loop r2)))))
+       r)]
+    [(non-poly-defn? a)
+     (simplify! (non-poly-defn-base a))]
+    [else a]))
 
 (define (simplify!* t)
   (cond
@@ -621,6 +639,7 @@
                                      (datatype-id t)
                                      (map simplify!*
                                           (datatype-args t))))]
+   [(non-poly-defn? t) (simplify!* (non-poly-defn-base t))]
    [else t]))
 
 (define (resolve-defn-types env)
@@ -630,7 +649,7 @@
            (and (defn? t)
                 (or (defn-rhs t)
                     (let* ([b (simplify!* (defn-proto-rhs t))]
-                           [poly (poly-ize b (defn-poly-context t))])
+                           [poly (poly-ize b (defn-poly-context t) (defn-base-tvars t))])
                       (for-each (lambda (x)
                                   (unify! (car x) (cdr x) (poly-instance poly)))
                                 (defn-insts t))

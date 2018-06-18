@@ -172,7 +172,10 @@ with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_ar
 (define (square-area [side : Size])
   (* side side))
 (square-area 10)
-]}
+]
+
+Except for @racket[_arg-id]s, the @racket[type] form must not
+reference any type variables that do not yet have a scope.}
 
 
 @defform/subs[#:literals (typed-in opaque-type-in rename-in :)
@@ -1561,6 +1564,93 @@ keys and the second @racket[type] correspond to values.}
 ]
 and used, for example, for the result of @racket[hash-ref].}
 
+@defform/none[#:literals (quote) (quote @#,racket[_id])]{
+
+A type variable that stands for an unspecified type. The type checker
+effectively replaces each type variable with some other type---but
+possibly another type variable that is bound by an inferred
+polymorphic type.
+
+In the following example, the type checker determines that @racket['a]
+must be replaced with @racket[Number]:
+
+@examples[#:eval demo #:label #f
+(define one : 'a 1)
+one]
+
+In the following example, the type checker determines that @racket['b]
+stands for the argument type of a polymorphic function:
+
+@examples[#:eval demo #:label #f
+(define (f [x : 'b]) x)
+]
+
+In the following examples, the type checker is unable to replace
+@racket['a] consistently with the same type everywhere:
+
+@examples[#:eval demo #:label #f
+(eval:error (if (has-type #t : 'a) (has-type 1 : 'a) 2))
+(eval:error (define x : 'a (list (has-type 1 : 'a))))
+]
+
+Multiple uses of the same type variable (i.e., with the same
+@racket[_id]) are constrained to refer to the same type only when the
+uses have the same scope. A type variable's scope is determined as
+follows:
+
+@itemlist[
+
+ @item{When a type variable is encountered in a left-to-right parsing
+       of a program and no same-named variable is already in scope,
+       then the variable's scope is set to the nearest enclosing
+       @racket[define] form, @racket[define-type] form,
+       @racket[lambda] form, @racket[let] right-hand side,
+       @racket[letrec] right-hand side, or @racket[let*] right-hand
+       side.}
+
+ @item{When a type variable is encountered in a left-to-right parsing
+       of a program and some same-named variable is already in scope,
+       the variable have the same scope (and are confined to have the
+       same meaning).}
+
+]
+
+For example, type variables introduced in separate definitions are
+always distinct, so in the following example, the first @racket['a]
+can stand for @racket[Number] while the second stands for
+@racket[String]:
+
+@examples[#:eval demo #:label #f
+(define one : 'a 1)
+(define two : 'a "two")
+]
+
+A type variable used for a @racket[lambda] argument is scoped to the
+entire @racket[lambda] form, so the uses of @racket['a] in the definitions of
+the following example refer back to that argument type, and the argument
+cannot have both @racket[Number] and @racket[String] type:
+
+@examples[#:eval demo #:label #f
+(eval:error
+ (lambda ([x : 'a])
+   (local [(define one : 'a 1)
+           (define two : 'a "two")]
+     #f)))
+]
+
+Beware that the order of expressions can affect the scope of type
+variables within the expressions:
+
+@examples[#:eval demo #:label #f
+(values
+  (has-type 1 : 'a)
+  (letrec ([f (lambda ([x : 'a]) x)]) f))
+(values
+  (letrec ([f (lambda ([x : 'a]) x)]) f)
+  (has-type 1 : 'a))
+]}
+  
+
 @; ----------------------------------------
 
 @section{Syntactic Literals}
@@ -1658,26 +1748,6 @@ a few small exceptions:
    possible to refer to a variable before it is defined. The type
    system does not prevent ``reference to identifier before
    definition'' errors.}
-
- @item{Type variables are always scoped locally within a type expression.
-
-   Compare OCaml:
-
-@verbatim[#:indent 2]{
-        # function (x : 'a), (y : 'a) -> x;;
-        - : 'a * 'a -> 'a = <fun>
-}
-
-   with
-
-@verbatim[#:indent 2]{
-        > (lambda ((x : 'a) (y : 'a)) x)
-        - ('a 'b -> 'a)
-       
-        > (define f : ('a 'a -> 'a) (lambda (x y) x))
-        > f
-        - ('a 'a -> 'a)
-}}
 
 ]
 

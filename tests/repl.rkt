@@ -39,6 +39,33 @@
 (tl "" '(define y (box empty)))
 (te (regexp-quote "(Listof (Boxof (Listof '_a))) vs. (Boxof (Listof '_b))") '(cons x y))
 
+;; Scope of type variables:
+(tl "" '(define f (lambda ([x : 'a] [y : 'b]) (has-type x : 'b))))
+(tl "- ('a 'a -> 'a)\n#<procedure:f>\n" 'f)
+(tl "" '(define g (lambda ([x : 'a] [y : 'b]) x)))
+(tl "- ('a 'b -> 'a)\n#<procedure:g>\n" 'g)
+(tl "- (('_a '_a -> '_a) * ('_b '_c -> '_b))\n'#(#<procedure:f> #<procedure:g>)\n"
+    '(letrec ([f (lambda ([x : 'a] [y : 'b]) (has-type x : 'b))]
+              [g (lambda ([x : 'a] [y : 'b]) x)])
+       (values f g)))
+(te (regexp-quote "Number vs. (Listof Number)") '(define x : 'a (cons (has-type 1 : 'a) empty)))
+(tl "- (Number * (Number -> Number))\n'#(1 #<procedure:f>)\n"
+    '(values
+      (has-type 1 : 'a)
+      (letrec ([f (lambda ([x : 'a]) x)]) f)))
+(tl "- (('_a -> '_a) * Number)\n'#(#<procedure:f> 1)\n"
+    '(values
+      (letrec ([f (lambda ([x : 'a]) x)]) f)
+      (has-type 1 : 'a)))
+(te (regexp-quote "Number vs. String")
+    '(lambda ([x : 'a])
+       (local [(define one : 'a 1)
+               (define two : 'a "two")]
+         #f)))
+
+(te #rx"free type variable not allowed in an alias" '(define-type-alias Foo 'a))
+(tl "" '(define-type-alias (Foo 'a) 'a))
+
 ;; Should have no source inside plai-typed implementation:
 (te "^typecheck failed" '(cond [#t 4] [#f "string"]))
 (te "^typecheck failed" '(cond [#t 4] ["string" 5]))

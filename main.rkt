@@ -1389,7 +1389,7 @@
     [_ expr]))
 
 (define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? 
-                                    poly-context orig-let-polys submods)
+                                    poly-context orig-let-polys submods base-tvars)
   (let* ([poly-context (cons (gensym) poly-context)]
          [datatypes (append (filter
                              values
@@ -1454,193 +1454,203 @@
                           aliases)]
          [make-polymorphic-wrt
           (lambda (t ty tvars)
-            (let loop ([tvars tvars][ty ty])
+            (let loop ([tvars tvars] [ty ty])
               (if (null? tvars)
                   ty
                   (make-poly t
                              (car tvars)
                              (loop (cdr tvars) ty)))))]
-         [parse-type/tenv 
+         [parse-type/tenv/accum
+          (lambda (t tenv tvars/box)
+            (letrec ([parse-one
+                      (lambda (seen tenv t)
+                        (let loop ([t t])
+                          (syntax-case t (number boolean symbol string: char s-expression
+                                                 gensym listof: boxof: hashof: parameterof: void: -> 
+                                                 vectorof: quote: * Optionof)
+                            [(quote: id)
+                             (identifier? #'id)
+                             (let ([a (ormap (lambda (p)
+                                               (and (free-identifier=? (car p) #'id)
+                                                    p))
+                                             (append tenv
+                                                     (if (box? tvars/box)
+                                                         (unbox tvars/box)
+                                                         tvars/box)))])
+                               (cond
+                                 [a (cdr a)]
+                                 [(box? tvars/box)
+                                  (let ([t (gen-tvar #'id)])
+                                    (set-box! tvars/box (cons (cons #'id t) (unbox tvars/box)))
+                                    t)]
+                                 [else
+                                  (raise-syntax-error 'define-type-alias "type variable must not be introduced by an alias" t)]))]
+                            [number (make-num t)]
+                            [boolean (make-bool t)]
+                            [symbol (make-sym t)]
+                            [s-expression (make-sexp t)]
+                            [string: (make-str t)]
+                            [char (make-chr t)]
+                            [void: (make-vd t)]
+                            [(gensym who) (gen-tvar #'who)]
+                            [(arg-type ... -> result-type)
+                             (make-arrow t 
+                                         (map loop (syntax->list #'(arg-type ...)))
+                                         (loop #'result-type))]
+                            [(listof: elem)
+                             (make-listof t (loop #'elem))]
+                            [(boxof: elem)
+                             (make-boxof t (loop #'elem))]
+                            [(vectorof: elem)
+                             (make-vectorof t (loop #'elem))]
+                            [(hashof: key val)
+                             (make-hashof t (loop #'key) (loop #'val))]
+                            [(parameterof: elem)
+                             (make-parameterof t (loop #'elem))]
+                            [(a * more ...)
+                             (let ([m (syntax->list #'(more ...))])
+                               (let loop ([m m])
+                                 (cond
+                                   [(null? m) #f]
+                                   [(null? (cdr m)) #t]
+                                   [(free-identifier=? #'* (cadr m))
+                                    (loop (cddr m))])))
+                             (make-tupleof t
+                                           (let ploop ([m (syntax->list #'(a * more ...))])
+                                             (cond
+                                               [(null? (cdr m))
+                                                (list (loop (car m)))]
+                                               [else
+                                                (cons (loop (car m))
+                                                      (ploop (cddr m)))])))]
+                            [() (make-tupleof t null)]
+                            [(Optionof type)
+                             (make-datatype t #'Optionof (list (loop #'type)))]
+                            [(id type0 type ...)
+                             (let ([types (syntax->list #'(type0 type ...))])
+                               (or (and (identifier? #'id)
+                                        (ormap (lambda (d)
+                                                 (and (free-identifier=? (car d) #'id)
+                                                      (if (= (cdr d) (length types))
+                                                          #t
+                                                          (raise-syntax-error
+                                                           #f
+                                                           (if (zero? (cdr d))
+                                                               "bad type (incorrect use of a non-polymorphic type name)"
+                                                               "type constructor applied to the wrong number of types")
+                                                           t))))
+                                               datatypes)
+                                        (make-datatype t (car (syntax-e t)) (map loop types)))
+                                   (and (identifier? #'id)
+                                        (ormap (lambda (d)
+                                                 (and (free-identifier=? (car d) #'id)
+                                                      (if (null? types)
+                                                          (make-opaque-datatype
+                                                           t
+                                                           (car (syntax-e t))
+                                                           null
+                                                           (cdr d))
+                                                          (raise-syntax-error
+                                                           #f
+                                                           "bad type (incorrect use of a non-polymorphic type name)"
+                                                           t))))
+                                               opaques))
+                                   (ormap (lambda (d)
+                                            (and (and (identifier? #'id)
+                                                      (free-identifier=? (car d) #'id))
+                                                 (begin
+                                                   (unless (= (length (cadr d)) (length types))
+                                                     
+                                                     (raise-syntax-error
+                                                      #f
+                                                      (if (zero? (cdr d))
+                                                          "bad type (incorrect use of a non-polymorphic type alias name)"
+                                                          "type alias constructor applied to the wrong number of types")
+                                                      t))
+                                                   (when (ormap (lambda (s)
+                                                                  (free-identifier=? s #'id))
+                                                                seen)
+                                                     (raise-syntax-error
+                                                      #f
+                                                      "recursively defined type alias"
+                                                      t))
+                                                   (parse-one 
+                                                    (cons (car d) seen)
+                                                    (append (map (lambda (formal arg) 
+                                                                   (cons formal 
+                                                                         (loop arg)))
+                                                                 (cadr d)
+                                                                 types)
+                                                            tenv)
+                                                    (caddr d)))))
+                                          aliases)
+                                   (raise-syntax-error
+                                    #f
+                                    "bad type"
+                                    t)))]
+                            [else
+                             (or (and (identifier? t)
+                                      (ormap (lambda (d)
+                                               (and (free-identifier=? (car d) t)
+                                                    (if (zero? (cdr d))
+                                                        #t
+                                                        (raise-syntax-error
+                                                         #f
+                                                         "type constructor must be applied to types"
+                                                         t))))
+                                             datatypes)
+                                      (make-datatype t t null))
+                                 (and (identifier? t)
+                                      (ormap (lambda (d)
+                                               (and (free-identifier=? (car d) t)
+                                                    (make-opaque-datatype
+                                                     t
+                                                     t
+                                                     null
+                                                     (cdr d))))
+                                             opaques))
+                                 (and (identifier? t)
+                                      (ormap (lambda (d)
+                                               (and (free-identifier=? (car d) t)
+                                                    (begin
+                                                      (unless (cadr d)
+                                                        (raise-syntax-error
+                                                         #f
+                                                         "type alias constructor must be applied to types"
+                                                         t))
+                                                      (when (ormap (lambda (s)
+                                                                     (free-identifier=? s t))
+                                                                   seen)
+                                                        (raise-syntax-error
+                                                         #f
+                                                         "recursively defined type alias"
+                                                         t))
+                                                      (parse-one (cons (car d) seen) tenv (caddr d)))))
+                                             aliases))
+                                 (raise-syntax-error
+                                  #f
+                                  "bad type"
+                                  t))])))])
+              (parse-one null tenv t)))]
+         [parse-type/tenv
           (lambda (t tenv)
-            (let ([tvars null])
-              (let ([ty
-                     (letrec ([parse-one
-                               (lambda (seen tenv t)
-                                 (let loop ([t t])
-                                   (syntax-case t (number boolean symbol string: char s-expression
-                                                          gensym listof: boxof: hashof: parameterof: void: -> 
-                                                          vectorof: quote: * Optionof)
-                                     [(quote: id)
-                                      (identifier? #'id)
-                                      (let ([a (ormap (lambda (p)
-                                                        (and (free-identifier=? (car p) #'id)
-                                                             p))
-                                                      (append tenv
-                                                              tvars))])
-                                        (if a
-                                            (cdr a)
-                                            (let ([t (gen-tvar #'id)])
-                                              (set! tvars (cons (cons #'id t) tvars))
-                                              t)))]
-                                     [number (make-num t)]
-                                     [boolean (make-bool t)]
-                                     [symbol (make-sym t)]
-                                     [s-expression (make-sexp t)]
-                                     [string: (make-str t)]
-                                     [char (make-chr t)]
-                                     [void: (make-vd t)]
-                                     [(gensym who) (gen-tvar #'who)]
-                                     [(arg-type ... -> result-type)
-                                      (make-arrow t 
-                                                  (map loop (syntax->list #'(arg-type ...)))
-                                                  (loop #'result-type))]
-                                     [(listof: elem)
-                                      (make-listof t (loop #'elem))]
-                                     [(boxof: elem)
-                                      (make-boxof t (loop #'elem))]
-                                     [(vectorof: elem)
-                                      (make-vectorof t (loop #'elem))]
-                                     [(hashof: key val)
-                                      (make-hashof t (loop #'key) (loop #'val))]
-                                     [(parameterof: elem)
-                                      (make-parameterof t (loop #'elem))]
-                                     [(a * more ...)
-                                      (let ([m (syntax->list #'(more ...))])
-                                        (let loop ([m m])
-                                          (cond
-                                           [(null? m) #f]
-                                           [(null? (cdr m)) #t]
-                                           [(free-identifier=? #'* (cadr m))
-                                            (loop (cddr m))])))
-                                      (make-tupleof t
-                                                    (let ploop ([m (syntax->list #'(a * more ...))])
-                                                      (cond
-                                                       [(null? (cdr m))
-                                                        (list (loop (car m)))]
-                                                       [else
-                                                        (cons (loop (car m))
-                                                              (ploop (cddr m)))])))]
-                                     [() (make-tupleof t null)]
-                                     [(Optionof type)
-                                      (make-datatype t #'Optionof (list (loop #'type)))]
-                                     [(id type0 type ...)
-                                      (let ([types (syntax->list #'(type0 type ...))])
-                                        (or (and (identifier? #'id)
-                                                 (ormap (lambda (d)
-                                                          (and (free-identifier=? (car d) #'id)
-                                                               (if (= (cdr d) (length types))
-                                                                   #t
-                                                                   (raise-syntax-error
-                                                                    #f
-                                                                    (if (zero? (cdr d))
-                                                                        "bad type (incorrect use of a non-polymorphic type name)"
-                                                                        "type constructor applied to the wrong number of types")
-                                                                    t))))
-                                                        datatypes)
-                                                 (make-datatype t (car (syntax-e t)) (map loop types)))
-                                            (and (identifier? #'id)
-                                                 (ormap (lambda (d)
-                                                          (and (free-identifier=? (car d) #'id)
-                                                               (if (null? types)
-                                                                   (make-opaque-datatype
-                                                                    t
-                                                                    (car (syntax-e t))
-                                                                    null
-                                                                    (cdr d))
-                                                                   (raise-syntax-error
-                                                                    #f
-                                                                    "bad type (incorrect use of a non-polymorphic type name)"
-                                                                    t))))
-                                                        opaques))
-                                            (ormap (lambda (d)
-                                                     (and (and (identifier? #'id)
-                                                               (free-identifier=? (car d) #'id))
-                                                          (begin
-                                                            (unless (= (length (cadr d)) (length types))
-                                                              
-                                                              (raise-syntax-error
-                                                               #f
-                                                               (if (zero? (cdr d))
-                                                                   "bad type (incorrect use of a non-polymorphic type alias name)"
-                                                                   "type alias constructor applied to the wrong number of types")
-                                                               t))
-                                                            (when (ormap (lambda (s)
-                                                                           (free-identifier=? s #'id))
-                                                                         seen)
-                                                              (raise-syntax-error
-                                                               #f
-                                                               "recursively defined type alias"
-                                                               t))
-                                                            (parse-one 
-                                                             (cons (car d) seen)
-                                                             (append (map (lambda (formal arg) 
-                                                                            (cons formal 
-                                                                                  (loop arg)))
-                                                                          (cadr d)
-                                                                          types)
-                                                                     tenv)
-                                                             (caddr d)))))
-                                                   aliases)
-                                            (raise-syntax-error
-                                             #f
-                                             "bad type"
-                                             t)))]
-                                     [else
-                                      (or (and (identifier? t)
-                                               (ormap (lambda (d)
-                                                        (and (free-identifier=? (car d) t)
-                                                             (if (zero? (cdr d))
-                                                                 #t
-                                                                 (raise-syntax-error
-                                                                  #f
-                                                                  "type constructor must be applied to types"
-                                                                  t))))
-                                                      datatypes)
-                                               (make-datatype t t null))
-                                          (and (identifier? t)
-                                               (ormap (lambda (d)
-                                                        (and (free-identifier=? (car d) t)
-                                                             (make-opaque-datatype
-                                                              t
-                                                              t
-                                                              null
-                                                              (cdr d))))
-                                                      opaques))
-                                          (and (identifier? t)
-                                               (ormap (lambda (d)
-                                                        (and (free-identifier=? (car d) t)
-                                                             (begin
-                                                               (unless (cadr d)
-                                                                 (raise-syntax-error
-                                                                  #f
-                                                                  "type alias constructor must be applied to types"
-                                                                  t))
-                                                               (when (ormap (lambda (s)
-                                                                              (free-identifier=? s t))
-                                                                            seen)
-                                                                 (raise-syntax-error
-                                                                  #f
-                                                                  "recursively defined type alias"
-                                                                  t))
-                                                               (parse-one (cons (car d) seen) tenv (caddr d)))))
-                                                      aliases))
-                                          (raise-syntax-error
-                                           #f
-                                           "bad type"
-                                           t))])))])
-                       (parse-one null tenv t))])
-                (make-polymorphic-wrt t ty (map cdr tvars)))))]
+            (define tvars-box (box base-tvars))
+            (define ty (parse-type/tenv/accum t tenv tvars-box))
+            (make-polymorphic-wrt t ty (map cdr (unbox tvars-box))))]
          [parse-type (lambda (type)
                        (parse-type/tenv type null))]
-         [parse-mono-type (lambda (type)
-                            (poly-instance (parse-type type)))]
-         [parse-param-type (lambda (tenv)
+         [parse-type/accum (lambda (type tvars-box)
+                             (parse-type/tenv/accum type null tvars-box))]
+         [parse-mono-type (lambda (type tvars-box)
+                            (parse-type/tenv/accum type null tvars-box))]
+         [parse-param-type (lambda (tenv tvars/box)
                              (lambda (type)
-                               (poly-instance (parse-type/tenv type tenv))))]
-         [extract-arg-type (lambda (arg)
-                             (syntax-case arg (:)
-                               [(id : type) (parse-mono-type #'type)]
-                               [_ (gen-tvar #'arg)]))]
+                               (parse-type/tenv/accum type tenv tvars/box)))]
+         [extract-arg-type (lambda (tvars-box)
+                             (lambda (arg)
+                               (syntax-case arg (:)
+                                 [(id : type) (parse-mono-type #'type tvars-box)]
+                                 [_ (gen-tvar #'arg)])))]
          [macros (apply append
                         (map 
                          (lambda (stx)
@@ -1663,13 +1673,14 @@
                                                 [(name (quote arg) ...)
                                                  (values #'name (syntax->list #'(arg ...)))]
                                                 [else (values #'name null)])])
-                                  (let ([arg-types (map gen-tvar args)])
+                                  (let ([arg-types (map gen-tvar args)]
+                                        [tvars-box (box base-tvars)])
                                     (map (lambda (variant types)
                                            (cons variant
                                                  (map (lambda (te)
                                                         (make-polymorphic-wrt
                                                          variant
-                                                         ((parse-param-type (map cons args arg-types)) te)
+                                                         ((parse-param-type (map cons args arg-types) tvars-box) te)
                                                          arg-types))
                                                       (syntax->list types))))
                                          (syntax->list #'(variant ...))
@@ -1732,80 +1743,109 @@
                     (lambda (stx)
                       (syntax-case stx (require: define: define-values: define-type: lambda: :)
                         [(define-values: (id ...) rhs)
-                         (let ([val? (is-value? #'rhs)])
+                         (let ([val? (is-value? #'rhs)]
+                               [tvars-box (box base-tvars)])
                            (map (lambda (id)
                                   (if (identifier? id)
                                       (cons id (if val?
                                                    (create-defn
                                                     (gen-tvar id)
-                                                    poly-context)
+                                                    poly-context
+                                                    base-tvars
+                                                    (unbox tvars-box))
                                                    (as-non-poly 
                                                     (gen-tvar id)
-                                                    poly-context)))
+                                                    poly-context
+                                                    (unbox tvars-box))))
                                       (syntax-case id (:)
                                         [(id : type)
                                          (cons #'id 
                                                (if val?
                                                    (create-defn
-                                                    (parse-type #'type)
-                                                    poly-context)
+                                                    (parse-type/accum #'type tvars-box)
+                                                    poly-context
+                                                    base-tvars
+                                                    (unbox tvars-box))
                                                    (as-non-poly
-                                                    (parse-mono-type #'type)
-                                                    poly-context)))])))
+                                                    (parse-mono-type #'type tvars-box)
+                                                    poly-context
+                                                    (unbox tvars-box))))])))
                                 (syntax->list #'(id ...))))]
                         [(define: (id . args) : result-type . _body)
-                         (list (cons #'id
-                                     (create-defn
-                                      (make-arrow 
-                                       #'id
-                                       (map extract-arg-type
-                                            (syntax->list #'args))
-                                       (parse-mono-type #'result-type))
-                                      poly-context)))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id
+                                       (create-defn
+                                        (make-arrow 
+                                         #'id
+                                         (map (extract-arg-type tvars-box)
+                                              (syntax->list #'args))
+                                         (parse-mono-type #'result-type tvars-box))
+                                        poly-context
+                                        base-tvars
+                                        (unbox tvars-box)))))]
                         [(define: (id . args) . _body)
-                         (list (cons #'id (create-defn (make-arrow 
-                                                        #'id
-                                                        (map extract-arg-type (syntax->list #'args))
-                                                        (gen-tvar #'id))
-                                                       poly-context)))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id (create-defn (make-arrow 
+                                                          #'id
+                                                          (map (extract-arg-type tvars-box) (syntax->list #'args))
+                                                          (gen-tvar #'id))
+                                                         poly-context
+                                                         base-tvars
+                                                         (unbox tvars-box)))))]
                         [(define: id : type (lambda: . _))
-                         (list (cons #'id
-                                     (create-defn (parse-type #'type)
-                                                  poly-context)))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id
+                                       (create-defn (parse-type/accum #'type tvars-box)
+                                                    poly-context
+                                                    base-tvars
+                                                    (unbox tvars-box)))))]
                         [(define: id (lambda: args : result-type expr))
-                         (list (cons #'id
-                                     (create-defn
-                                      (make-arrow
-                                       #'id
-                                       (map extract-arg-type (syntax->list #'args))
-                                       (parse-mono-type #'result-type))
-                                      poly-context)))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id
+                                       (create-defn
+                                        (make-arrow
+                                         #'id
+                                         (map (extract-arg-type tvars-box) (syntax->list #'args))
+                                         (parse-mono-type #'result-type tvars-box))
+                                        poly-context
+                                        base-tvars
+                                        (unbox tvars-box)))))]
                         [(define: id (lambda: args expr))
-                         (list (cons #'id
-                                     (create-defn
-                                      (make-arrow
-                                       #'id
-                                       (map extract-arg-type (syntax->list #'args))
-                                       (gen-tvar #'id))
-                                      poly-context)))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id
+                                       (create-defn
+                                        (make-arrow
+                                         #'id
+                                         (map (extract-arg-type tvars-box) (syntax->list #'args))
+                                         (gen-tvar #'id))
+                                        poly-context
+                                        base-tvars
+                                        (unbox tvars-box)))))]
                         [(define: id : type expr)
-                         (list (cons #'id 
-                                     (if (is-value? #'expr)
-                                         (create-defn
-                                          (parse-type #'type)
-                                          poly-context)
-                                         (as-non-poly
-                                          (parse-mono-type #'type)
-                                          poly-context))))]
+                         (let ([tvars-box (box base-tvars)])
+                           (list (cons #'id 
+                                       (if (is-value? #'expr)
+                                           (create-defn
+                                            (parse-type/accum #'type tvars-box)
+                                            poly-context
+                                            base-tvars
+                                            (unbox tvars-box))
+                                           (as-non-poly
+                                            (parse-mono-type #'type tvars-box)
+                                            poly-context
+                                            (unbox tvars-box))))))]
                         [(define: id expr)
                          (list (cons #'id 
                                      (if (is-value? #'expr)
                                          (create-defn
                                           (gen-tvar #'id)
-                                          poly-context)
+                                          poly-context
+                                          base-tvars
+                                          null)
                                          (as-non-poly
                                           (gen-tvar #'id)
-                                          poly-context))))]
+                                          poly-context
+                                          null))))]
                         [(define-type: name
                            [variant (field-id : type) ...]
                            ...)
@@ -1814,11 +1854,13 @@
                                          [(name (quote arg) ...)
                                           (values #'name (syntax->list #'(arg ...)))]
                                          [else (values #'name null)])])
-                           (let ([arg-tvars (map gen-tvar args)])
+                           (let ([arg-tvars (map gen-tvar args)]
+                                 [tvars-box (box base-tvars)])
                              (apply append
                                     (map (lambda (var fields types)
                                            (let ([types (map (parse-param-type 
-                                                              (map cons args arg-tvars))
+                                                              (map cons args arg-tvars)
+                                                              tvars-box)
                                                              (syntax->list types))]
                                                  [dt (make-datatype name 
                                                                     name
@@ -1863,7 +1905,7 @@
          [types
           (map
            (lambda (tl)
-             (let typecheck ([expr tl] [env env])
+             (let typecheck ([expr tl] [env env] [tvars-box (box base-tvars)])
                (syntax-case (rename expr) (: require: define-type: define: define-values: 
                                              define-type-alias define-syntax: define-syntax-rule:
                                              lambda: begin: local: letrec: let: let*: 
@@ -1903,7 +1945,8 @@
                                                   #f
                                                   poly-context
                                                   let-polys
-                                                  prev-submods)])
+                                                  prev-submods
+                                                  base-tvars)])
                     (set! submods (hash-set submods (syntax-e #'name)
                                             (vector datatypes dt-len
                                                     opaques o-len
@@ -1932,20 +1975,27 @@
                  [(define-type-alias (id (quote: arg) ...) t)
                   ;; check that `t' makes sense
                   ((parse-param-type (map (lambda (arg) (cons arg (gen-tvar arg)))
-                                          (syntax->list #'(arg ...))))
-                   #'t)]
+                                          (syntax->list #'(arg ...)))
+                                     ;; Not a box => no free type variables allowed
+                                     base-tvars)
+                   #'t)
+                  (void)]
                  [(define-type-alias id t)
                   ;; check that `t' makes sense
-                  (parse-type #'t)]
+                  ((parse-param-type null base-tvars) #'t)
+                  (void)]
                  [(define: (id arg ...) . rest)
                   (typecheck #'(define: id (lambda: (arg ...) . rest))
-                             env)]
+                             env
+                             tvars-box)]
                  [(define: id : type expr)
-                  (unify-defn! #'expr (lookup #'id env)
-                               (typecheck #'expr env))]
+                  (let ([dt (lookup #'id env)])
+                    (unify-defn! #'expr dt
+                                 (typecheck #'expr env (box (get-defn-tvars dt)))))]
                  [(define: id expr)
                   (typecheck #'(define: id : (gensym id) expr)
-                             env)]
+                             env
+                             tvars-box)]
                  [(define-values: (id ...) rhs)
                   (let ([id-ids (map (lambda (id)
                                        (if (identifier? id)
@@ -1955,12 +2005,12 @@
                         [id-types (map (lambda (id)
                                          (syntax-case id (:)
                                            [(id : type)
-                                            (poly-instance (parse-type #'type))]
+                                            (poly-instance (parse-type/accum #'type tvars-box))]
                                            [else (gen-tvar id)]))
                                        (syntax->list #'(id ...)))])
                     (unify! expr
                             (make-tupleof expr id-types)
-                            (typecheck #'rhs env))
+                            (typecheck #'rhs env tvars-box))
                     (for-each (lambda (id tvar)
                                 (unify-defn! expr
                                              (lookup id env)
@@ -1968,36 +2018,39 @@
                               id-ids
                               id-types))]
                  [(lambda: (arg ...) : type body)
-                  (let ([arg-ids (map (lambda (arg)
-                                        (if (identifier? arg)
-                                            arg
-                                            (car (syntax-e arg))))
-                                      (syntax->list #'(arg ...)))]
-                        [arg-types (map (lambda (arg)
-                                          (syntax-case arg (:)
-                                            [(id : type)
-                                             (poly-instance (parse-type #'type))]
-                                            [else (gen-tvar arg)]))
+                  (let ([tvars-box (box (unbox tvars-box))])
+                    (let ([arg-ids (map (lambda (arg)
+                                          (if (identifier? arg)
+                                              arg
+                                              (car (syntax-e arg))))
                                         (syntax->list #'(arg ...)))]
-                        [result-type (poly-instance (parse-type #'type))])
-                    (unify! #'body
-                            (typecheck #'body (append (map cons 
-                                                           arg-ids
-                                                           arg-types)
-                                                      env))
-                            result-type)
-                    (make-arrow expr arg-types result-type))]
+                          [arg-types (map (lambda (arg)
+                                            (syntax-case arg (:)
+                                              [(id : type)
+                                               (poly-instance (parse-type/accum #'type tvars-box))]
+                                              [else (gen-tvar arg)]))
+                                          (syntax->list #'(arg ...)))]
+                          [result-type (poly-instance (parse-type/accum #'type tvars-box))])
+                      (unify! #'body
+                              (typecheck #'body (append (map cons 
+                                                             arg-ids
+                                                             arg-types)
+                                                        env)
+                                         tvars-box)
+                              result-type)
+                      (make-arrow expr arg-types result-type)))]
                  [(lambda: (arg ...) body)
                   (with-syntax ([expr expr])
                     (typecheck (syntax/loc #'expr
                                  (lambda: (arg ...) : (gensym expr) body))
-                               env))]
+                               env
+                               tvars-box))]
                  [(begin: e ... last-e)
                   (begin
                     (map (lambda (e)
-                           (typecheck e env))
+                           (typecheck e env tvars-box))
                          (syntax->list #'(e ...)))
-                    (typecheck #'last-e env))]
+                    (typecheck #'last-e env tvars-box))]
                  [(local: [defn ...] expr)
                   (let-values ([(ty env datatypes opaques aliases vars macros tl-tys subs)
                                 (typecheck-defns (syntax->list #'(defn ...))
@@ -2009,14 +2062,15 @@
                                                  #f
                                                  poly-context
                                                  let-polys
-                                                 submods)])
-                    (typecheck #'expr env))]
+                                                 submods
+                                                 (unbox tvars-box))])
+                    (typecheck #'expr env tvars-box))]
                  [(letrec: . _)
-                  (typecheck ((make-let 'letrec) expr) env)]
+                  (typecheck ((make-let 'letrec) expr) env tvars-box)]
                  [(let: . _)
-                  (typecheck ((make-let 'let) expr) env)]
+                  (typecheck ((make-let 'let) expr) env tvars-box)]
                  [(let*: . _)
-                  (typecheck ((make-let 'let*) expr) env)]
+                  (typecheck ((make-let 'let*) expr) env tvars-box)]
                  [(shared: ([id rhs] ...) expr)
                   (let-values ([(ty env datatypes opaques aliases vars macros tl-tys subs)
                                 (typecheck-defns (syntax->list #'((define: id rhs) ...))
@@ -2027,16 +2081,17 @@
                                                  variants
                                                  #f
                                                  poly-context
-                                                 let-polys submods)])
-                    (typecheck #'expr env))]
+                                                 let-polys submods
+                                                 (unbox tvars-box))])
+                    (typecheck #'expr env tvars-box))]
                  [(parameterize: ([param rhs] ...) expr)
                   (begin
                     (for ([param (in-list (syntax->list #'(param ...)))]
                           [rhs (in-list (syntax->list #'(rhs ...)))])
                       (unify! #'param 
-                              (typecheck param env)
-                              (make-parameterof rhs (typecheck rhs env))))
-                    (typecheck #'expr env))]
+                              (typecheck param env tvars-box)
+                              (make-parameterof rhs (typecheck rhs env tvars-box))))
+                    (typecheck #'expr env tvars-box))]
                  [(cond: [ques ans] ...)
                   (let ([res-type (gen-tvar expr)])
                     (for-each
@@ -2046,10 +2101,10 @@
                                  [_ #f])
                          (unify! ques
                                  (make-bool ques)
-                                 (typecheck ques env)))
+                                 (typecheck ques env tvars-box)))
                        (unify! ans
                                res-type
-                               (typecheck ans env)))
+                               (typecheck ans env tvars-box)))
                      (syntax->list #'(ques ...))
                      (syntax->list #'(ans ...)))
                     res-type)]
@@ -2065,46 +2120,46 @@
                                      (number? (syntax-e #'v))
                                      (make-num #'expr)]
                                     [_ (make-sym #'expr)])))
-                            (typecheck #'expr env))
+                            (typecheck #'expr env tvars-box))
                     (for-each
                      (lambda (ans)
                        (unify! #'ans
                                res-type
-                               (typecheck ans env)))
+                               (typecheck ans env tvars-box)))
                      (syntax->list #'(ans ...)))
                     res-type)]
                  [(if: test then else)
                   (begin
                     (unify! #'test
                             (make-bool #'test)
-                            (typecheck #'test env))
-                    (let ([then-type (typecheck #'then env)])
-                      (unify! #'then then-type (typecheck #'else env))
+                            (typecheck #'test env tvars-box))
+                    (let ([then-type (typecheck #'then env tvars-box)])
+                      (unify! #'then then-type (typecheck #'else env tvars-box))
                       then-type))]
                  [(when: test e ...)
                   (begin
                     (unify! #'test
                             (make-bool #'test)
-                            (typecheck #'test env))
-                    (typecheck #'(begin: e ...) env)
+                            (typecheck #'test env tvars-box))
+                    (typecheck #'(begin: e ...) env tvars-box)
                     (make-vd expr))]
                  [(unless: test e ...)
                   (begin
                     (unify! #'test
                             (make-bool #'test)
-                            (typecheck #'test env))
-                    (typecheck #'(begin: e ...) env)
+                            (typecheck #'test env tvars-box))
+                    (typecheck #'(begin: e ...) env tvars-box)
                     (make-vd expr))]
                  [(and: e ...)
                   (let ([b (make-bool expr)])
                     (for-each (lambda (e)
-                                (unify! e b (typecheck e env)))
+                                (unify! e b (typecheck e env tvars-box)))
                               (syntax->list #'(e ...)))
                     b)]
                  [(or: e ...)
                   (let ([b (make-bool expr)])
                     (for-each (lambda (e)
-                                (unify! e b (typecheck e env)))
+                                (unify! e b (typecheck e env tvars-box)))
                               (syntax->list #'(e ...)))
                     b)]
                  [(set!: id e)
@@ -2114,18 +2169,18 @@
                                             "cannot mutate identifier with a polymorphic type"
                                             expr
                                             #'id)
-                        (unify-defn! #'id t (typecheck #'e env))))
+                        (unify-defn! #'id t (typecheck #'e env tvars-box))))
                   (make-vd expr)]
                  [(trace: id ...)
                   (let ([ids (syntax->list #'(id ...))])
                     (for-each (lambda (id)
-                                (unify! id (gen-tvar id #t) (typecheck id env)))
+                                (unify! id (gen-tvar id #t) (typecheck id env tvars-box)))
                               ids)
                     (make-tupleof expr null))]
                  [(type-case: type val [(variant id ...) ans] ...)
-                  (let ([type (parse-mono-type #'type)]
+                  (let ([type (parse-mono-type #'type tvars-box)]
                         [res-type (gen-tvar expr)])
-                    (unify! #'val type (typecheck #'val env))
+                    (unify! #'val type (typecheck #'val env tvars-box))
                     (for-each (lambda (var ids ans)
                                 (let ([id-lst (syntax->list ids)]
                                       [variant-params (lookup var variants)])
@@ -2148,7 +2203,8 @@
                                                                     type)))
                                                            id-lst
                                                            variant-params)
-                                                      env)))))
+                                                      env)
+                                              tvars-box))))
                               (syntax->list #'(variant ...))
                               (syntax->list #'((id ...) ...))
                               (syntax->list #'(ans ...)))
@@ -2156,8 +2212,9 @@
                  [(type-case: type val [(variant id ...) ans] ... [else else-ans])
                   (let ([t (typecheck (syntax/loc expr
                                         (type-case: type val [(variant id ...) ans] ...))
-                                      env)])
-                    (unify! #'else-ans t (typecheck #'else-ans env))
+                                      env
+                                      tvars-box)])
+                    (unify! #'else-ans t (typecheck #'else-ans env tvars-box))
                     t)]
                  [(type-case: . rest)
                   (signal-typecase-syntax-error expr)]
@@ -2191,27 +2248,27 @@
                   (check-quoted #'e (lambda (stx)
                                       (syntax-case stx (unquote unquote-splicing)
                                         [(unquote e) (unify! #'e 
-                                                             (typecheck #'e env)
+                                                             (typecheck #'e env tvars-box)
                                                              (make-sexp #f))]
                                         [(unquote-splicing e) (unify! #'e 
-                                                                      (typecheck #'e env) 
+                                                                      (typecheck #'e env tvars-box) 
                                                                       (make-listof #f (make-sexp #f)))])))
                   (make-sexp expr)]
                  [(time: expr)
-                  (typecheck #'expr env)]
+                  (typecheck #'expr env tvars-box)]
                  [(has-type expr : type)
-                  (let ([t (typecheck #'expr env)]
-                        [ty (parse-mono-type #'type)])
+                  (let ([t (typecheck #'expr env tvars-box)]
+                        [ty (parse-mono-type #'type tvars-box)])
                     (unify! #'expr t ty)
                     ty)]
                  [(try expr1 (lambda: () expr2))
-                  (let ([t (typecheck #'expr1 env)])
-                    (unify! #'expr2 t (typecheck #'expr2 env))
+                  (let ([t (typecheck #'expr1 env tvars-box)])
+                    (unify! #'expr2 t (typecheck #'expr2 env tvars-box))
                     t)]
                  [(list arg ...)
                   (let ([t (gen-tvar expr)])
                     (for-each (lambda (arg)
-                                (unify! arg t (typecheck arg env)))
+                                (unify! arg t (typecheck arg env tvars-box)))
                               (syntax->list #'(arg ...)))
                     (make-listof expr t))]
                  [list
@@ -2221,7 +2278,7 @@
                  [(vector arg ...)
                   (let ([t (gen-tvar expr)])
                     (for-each (lambda (arg)
-                                (unify! arg t (typecheck arg env)))
+                                (unify! arg t (typecheck arg env tvars-box)))
                               (syntax->list #'(arg ...)))
                     (make-vectorof expr t))]
                  [vector
@@ -2231,7 +2288,7 @@
                  [(values: arg ...)
                   (make-tupleof expr
                                 (map (lambda (arg)
-                                       (typecheck arg env))
+                                       (typecheck arg env tvars-box))
                                      (syntax->list #'(arg ...))))]
                  [values:
                   (raise-syntax-error #f
@@ -2241,14 +2298,14 @@
                  [(id . _)
                   (and (identifier? #'id)
                        (typed-macro? (syntax-local-value #'id (lambda () #f))))
-                  (typecheck (local-expand-typed expr) env)]
+                  (typecheck (local-expand-typed expr) env tvars-box)]
                  [(f arg ...)
                   (let ([res-type (gen-tvar expr)])
                     (unify! #'f
-                            (typecheck #'f env)
+                            (typecheck #'f env tvars-box)
                             (make-arrow #'f
                                         (map (lambda (arg)
-                                               (typecheck arg env))
+                                               (typecheck arg env tvars-box))
                                              (syntax->list #'(arg ...)))
                                         res-type)
                             #:function-call? #t)
@@ -2697,7 +2754,8 @@
                      #f
                      null
                      #f
-                     (hasheq))))
+                     (hasheq)
+                     null)))
 
 (define-for-syntax import-datatypes null)
 (define-for-syntax import-opaques null)
@@ -2895,7 +2953,7 @@
        (let-values ([(tys e2 d2 o2 a2 vars macros tl-types subs) 
                      (typecheck-defns (expand-includes (list #'body))
                                       tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) 
-                                      null #f tl-submods)])
+                                      null #f tl-submods null)])
          (set! tl-datatypes d2)
          (set! tl-opaques o2)
          (set! tl-aliases a2)
