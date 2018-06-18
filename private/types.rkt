@@ -73,8 +73,10 @@
      [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) tvar-names contra? #t))]
      [(hashof? type) #`(hash/c #,(loop (hashof-key type) tvar-names contra? #t)
                                #,(loop (hashof-val type) tvar-names contra? #t))]
-     [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x tvar-names inside-mutable?))
-                                                    (tupleof-args type)))]
+     [(tupleof? type) #`(struct/c tuple
+                                  [vec (immutable-vector/c
+                                        #,@(map (λ (x) (loop x tvar-names inside-mutable?))
+                                                (tupleof-args type)))])]
      [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names contra? #t))]
      [(poly? type) (if enforce-poly?
                        (let* ([name (gensym 'a)]

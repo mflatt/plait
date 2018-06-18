@@ -1511,10 +1511,20 @@ continuation.}
 @defthing[s-exp @#,italic{no type}]
 )]{
 
-These two functions have no type, so they cannot be used in a
-@racketmodname[plait] program. They can be used in untyped contexts
-to coerce a @racketmodname[plait] @tech{S-expression} to an plain
-Racket S-expression and vice-versa.}
+These functions have no type, so they cannot be used in a
+@racketmodname[plait] program. They can be used in untyped contexts to
+coerce a @racketmodname[plait] @tech{S-expression} to a plain Racket
+S-expression and vice-versa.}
+
+@deftogether[(
+@defthing[tuple-content @#,italic{no type}]
+@defthing[tuple @#,italic{no type}]
+)]{
+
+These functions have no type, so they cannot be used in a
+@racketmodname[plait] program. They can be used in untyped contexts to
+coerce a @racketmodname[plait] @tech{tuple} to an immutable vector
+and vice-versa.}
 
 @; ----------------------------------------
 

@@ -17,6 +17,7 @@
          racket/trace
          "private/fixup-quote.rkt"
          "private/s-exp.rkt"
+         "private/tuple.rkt"
          (for-syntax racket/base
                      racket/list
                      racket/syntax
@@ -102,7 +103,7 @@
          s-exp-match?
 
          ;; no type, so for use only in untyped:
-         s-exp s-exp-content
+         s-exp s-exp-content tuple tuple-content
          
          box unbox set-box!
 
@@ -144,13 +145,11 @@
          (apply
           append
           (for/list ([v (in-list l)])
-            (list (vector-ref v 0)
-                  (vector-ref v 1))))))
+            (list (fst v) (snd v))))))
 
 (define (make-hash: l)
   (make-hash (for/list ([v (in-list l)])
-               (cons (vector-ref v 0)
-                     (vector-ref v 1)))))
+               (cons (fst v) (snd v)))))
 
 (define (hash-ref: ht k)
   (define v (hash-ref ht k not-there))
@@ -668,11 +667,12 @@
             (syntax/loc stx
               (define (id arg ...) (#%expression expr)))))]))))
 
-(define values: vector-immutable)
+(define values: (lambda args
+                  (tuple (apply vector-immutable args))))
 
-(define (pair a b) (vector-immutable a b))
-(define (fst v) (vector-ref v 0))
-(define (snd v) (vector-ref v 1))
+(define (pair a b) (tuple (vector-immutable a b)))
+(define (fst v) (vector-ref (tuple-content v) 0))
+(define (snd v) (vector-ref (tuple-content v) 1))
 
 (define-syntax define-values:
   (check-top
@@ -695,7 +695,7 @@
                                       id)])))
                             (syntax->list #'(id ...)))])
           (syntax/loc stx
-            (define-values (id ...) (vector->values expr))))]))))
+            (define-values (id ...) (vector->values (tuple-content expr)))))]))))
 
 (define-syntax lambda:
   (check-top
