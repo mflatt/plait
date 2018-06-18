@@ -16,6 +16,7 @@
          (only-in racket/contract/base contract-out)
          racket/trace
          "private/fixup-quote.rkt"
+         "private/s-exp.rkt"
          (for-syntax racket/base
                      racket/list
                      racket/syntax
@@ -99,6 +100,9 @@
          s-exp-list? s-exp->list list->s-exp
          (rename-out [read: read])
          s-exp-match?
+
+         ;; no type, so for use only in untyped:
+         s-exp s-exp-content
          
          box unbox set-box!
 
@@ -154,21 +158,26 @@
       (none)
       (some v)))
 
-(define (s-exp-symbol? s) (symbol? s))
-(define (s-exp->symbol s) (if (symbol? s) s (error 's-exp->symbol "not a symbol: ~e" s)))
-(define (symbol->s-exp s) s)
-(define (s-exp-number? s) (number? s))
-(define (s-exp->number s) (if (number? s) s (error 's-exp->number "not a number: ~e" s)))
-(define (number->s-exp s) s)
-(define (s-exp-string? s) (string? s))
-(define (s-exp->string s) (if (string? s) s (error 's-exp->string "not a string: ~e" s)))
-(define (string->s-exp s) s)
-(define (s-exp-boolean? s) (boolean? s))
-(define (s-exp->boolean s) (if (boolean? s) s (error 's-exp->boolean "not a boolean: ~e" s)))
-(define (boolean->s-exp s) s)
-(define (s-exp-list? s) (list? s))
-(define (s-exp->list s) (if (list? s) s (error 's-exp->list "not a list: ~e" s)))
-(define (list->s-exp s) s)
+(define (s-exp-symbol? s) (symbol? (s-exp-content s)))
+(define (s-exp->symbol s) (let ([v (s-exp-content s)])
+                            (if (symbol? v) v (error 's-exp->symbol "not a symbol: ~e" s))))
+(define (symbol->s-exp s) (s-exp s))
+(define (s-exp-number? s) (number? (s-exp-content s)))
+(define (s-exp->number s) (let ([v (s-exp-content s)])
+                            (if (number? v) v (error 's-exp->number "not a number: ~e" s))))
+(define (number->s-exp s) (s-exp s))
+(define (s-exp-string? s) (string? (s-exp-content s)))
+(define (s-exp->string s) (let ([v (s-exp-content s)])
+                            (if (string? v) v (error 's-exp->string "not a string: ~e" s))))
+(define (string->s-exp s) (s-exp s))
+(define (s-exp-boolean? s) (boolean? (s-exp-content s)))
+(define (s-exp->boolean s) (let ([v (s-exp-content s)])
+                             (if (boolean? v) v (error 's-exp->boolean "not a boolean: ~e" s))))
+(define (boolean->s-exp s) (s-exp s))
+(define (s-exp-list? s) (list? (s-exp-content s)))
+(define (s-exp->list s) (let ([v (s-exp-content s)])
+                          (if (list? v) (map s-exp v) (error 's-exp->list "not a list: ~e" s))))
+(define (list->s-exp s) (s-exp (map s-exp-content s)))
 
 (define (identity x) x)
 
@@ -1183,7 +1192,7 @@
             (and l
                  (d->s s (map (lambda (v) (loop v qq)) l))))
           (raise-syntax-error #f
-                              "disallowed content; not a symbol, number, string, or list"
+                              "disallowed content; not a symbol, number, boolean, string, or list"
                               stx
                               s)))
     (if on-escaped
@@ -1206,22 +1215,23 @@
   (check-top
    (lambda (stx)
      (syntax-case stx ()
-       [(_ s)
-        (begin
-          (unless (identifier? #'s)
-            (raise-syntax-error #f
-                                "not an identifier after quote"
-                                stx
-                                #'s))
-          #'(quote s))]))))
+       [(_ s) #'(quote s)]))))
 
 (define-syntax quasiquote:
   (check-top
    (lambda (stx)
      (syntax-case stx ()
        [(_ s)
-        (check-quoted stx (lambda (s) s))]))))
-
+        #`(s-exp (quasiquote
+                  #,(check-quoted
+                     #'s
+                     (lambda (stx)
+                       (syntax-case stx (unquote unquote-splicing)
+                         [(unquote e)(syntax/loc stx
+                                       (unquote (s-exp-content e)))]
+                         [(unquote-splicing e) (syntax/loc stx
+                                                 (unquote-splicing (map s-exp-content e)))])))))]))))
+  
 (define-syntax and:
   (check-top
    (syntax-rules ()
@@ -2151,10 +2161,32 @@
                     t)]
                  [(type-case: . rest)
                   (signal-typecase-syntax-error expr)]
-                 [(quote: sym)
-                  (if (identifier? #'sym)
-                      (make-sym expr)
-                      (make-sexp expr))]
+                 [(quote: e)
+                  (let ([orig-expr expr])
+                    (let loop ([e #'e] [expr expr])
+                      (define v (syntax-e e))
+                      (cond
+                        [(symbol? v) (make-sym expr)]
+                        [(number? v) (make-num expr)]
+                        [(boolean? v) (make-bool expr)]
+                        [(string? v) (make-str expr)]
+                        [(null? v) (make-listof expr (gen-tvar expr))]
+                        [(pair? v)
+                         (define hd (make-listof expr (loop (car v) (car v))))
+                         (unify! expr hd (loop (datum->syntax e (cdr v)) expr))
+                         hd]
+                        [(vector? v)
+                         (define t (gen-tvar expr))
+                         (for ([e (in-vector v)])
+                           (unify! expr (loop e e) t))
+                         (make-vectorof expr t)]
+                        [(box? v)
+                         (make-boxof expr (loop (unbox v) (unbox v)))]
+                        [else (raise-syntax-error
+                               #f
+                               "disallowed content; not a symbol, number, boolean, string, list, vector, or box"
+                               orig-expr
+                               e)])))]
                  [(quasiquote: e)
                   (check-quoted #'e (lambda (stx)
                                       (syntax-case stx (unquote unquote-splicing)

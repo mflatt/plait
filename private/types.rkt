@@ -43,13 +43,14 @@
 (define (to-contract type enforce-poly?)
   (let loop ([type type]
              [tvar-names #hasheq()]
+             [contra? #f]
              [inside-mutable? #f])
     (cond
      [(defn? type) 
       ;; is this the right thing?
       (if (defn-rhs type)
-          (loop (defn-rhs type) tvar-names inside-mutable?)
-          (loop (car (defn-proto-rhs type)) tvar-names inside-mutable?))]
+          (loop (defn-rhs type) tvar-names contra? inside-mutable?)
+          (loop (car (defn-proto-rhs type)) tvar-names contra? inside-mutable?))]
      [(bool? type) #'boolean?]
      [(num? type) #'number?]
      [(sym? type) #'symbol?]
@@ -58,22 +59,22 @@
      [(str? type) #'string?]
      [(chr? type) #'char?]
      [(arrow? type)
-      #`(-> #,@(map (λ (x) (loop x tvar-names inside-mutable?)) (arrow-args type))
-            #,(loop (arrow-result type) tvar-names inside-mutable?))]
-     [(listof? type) #`(listof #,(loop (listof-element type) tvar-names inside-mutable?))]
-     [(boxof? type) #`(box/c #,(loop (boxof-element type) tvar-names #t))]
-     [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) tvar-names #t))]
-     [(hashof? type) #`(hash/c #,(loop (hashof-key type) tvar-names #t)
-                               #,(loop (hashof-val type) tvar-names #t))]
+      #`(-> #,@(map (λ (x) (loop x tvar-names (not contra?) inside-mutable?)) (arrow-args type))
+            #,(loop (arrow-result type) tvar-names contra? inside-mutable?))]
+     [(listof? type) #`(listof #,(loop (listof-element type) tvar-names contra? inside-mutable?))]
+     [(boxof? type) #`(box/c #,(loop (boxof-element type) tvar-names contra? #t))]
+     [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) tvar-names contra? #t))]
+     [(hashof? type) #`(hash/c #,(loop (hashof-key type) tvar-names contra? #t)
+                               #,(loop (hashof-val type) tvar-names contra? #t))]
      [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x tvar-names inside-mutable?))
                                                     (tupleof-args type)))]
-     [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names #t))]
+     [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names contra? #t))]
      [(poly? type) (if enforce-poly?
                        (let* ([name (gensym 'a)]
                               [tvar-names (hash-set tvar-names type name)])
                          #`(let ([#,name (new-∀/c '#,name)])
-                             #,(loop (poly-type type) tvar-names inside-mutable?)))
-                       (loop (poly-type type) tvar-names inside-mutable?))]
+                             #,(loop (poly-type type) tvar-names contra? inside-mutable?)))
+                       (loop (poly-type type) tvar-names contra? inside-mutable?))]
      [(opaque-datatype? type) 
       (opaque-datatype-pred type)]
      [(datatype? type) 
@@ -83,7 +84,7 @@
      [(tvar? type)
       ;; this can be done with new-∀ (in the poly? case), but only new-∃ exists at the moment
       (if (tvar-rep type)
-          (loop (tvar-rep type) tvar-names inside-mutable?)
+          (loop (tvar-rep type) tvar-names contra? inside-mutable?)
           (or (hash-ref tvar-names type #f)
               #'any/c))]
      [else (raise-syntax-error 'to-contract/expr
@@ -377,7 +378,7 @@
                null
                #f)))
 
-(define (poly-ize t poly-context)
+(define (poly-ize t [poly-context '()])
   (let loop ([tvars (extract-tvars t poly-context)] [t t])
     (cond
      [(null? tvars) t]

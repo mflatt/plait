@@ -1,11 +1,12 @@
 #lang racket
-(require "untyped.rkt")
+(require "untyped.rkt"
+         (only-in plait s-exp-content))
 
 (define-syntax-rule (test a b)
   (unless (equal? a b)
     (error 'test "failed: ~.s" 'b)))
 
-(test x '(a 2 "c" '(d)))
+(test (s-exp-content x) '(a 2 "c" '(d)))
 (test "ok" ((v-f i) "ok"))
 (test add1 (v-f (v add1)))
 (test #t (v? i))

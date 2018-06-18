@@ -304,16 +304,59 @@ has type @racket[type].
 (eval:error (has-type "a" : Number))]}
 
 
-@defform[(quote id)]{
-
-The @racket[quote] form produces a symbol.
+@defform/subs[(quote q-form)
+              ([q-form id
+                       Number
+                       String
+                       Boolean
+                       (q-form ...)
+                       (code:line @#,tt{#}(q-form ...))
+                       (code:line @#,tt{#&}q-form)])]{
 
 The @racket[quote] form is usually written as just a @litchar{'}
-before @racket[id]; that is, @racket['@#,racket[id]] and
+before a @racket[q-form]; that is, @racket['@#,racket[id]] and
 @racket[(@#,racket[quote] id)] are equivalent.
+
+The @racket[quote] form produces a symbol, number, string, boolean,
+list, vector, or box value:
+
+@itemlist[
+
+ @item{A @racket[quote]d @racket[id] produces a symbol. For example,
+       @racket['hello] produces the symbol whose letters are
+       @litchar{hello}.}
+
+ @item{A @racket[quote]d @racket[Number], @racket[String], or
+       @racket[Boolean] produces the @racket[Number], @racket[String],
+       or @racket[Boolean] itself. For example, @racket['1] is the
+       same as @racket[1].}
+
+ @item{A @racket[quote]d parenthesized form produces a list containing
+       the @racket[quote]d values within the parentheses. For example,
+       @racket['(1 2 3)] produces a list containing @racket[1],
+       @racket[2], and @racket[3]. Similarly, @racket['(a b c)]
+       produces a list containing three symbols, since @racket['a],
+       @racket['b], and @racket['c] are symbols.}
+
+ @item{A @racket[quote]d @tt{#}@racket[(q-form ...)] produces a @tech{vector}. The
+       vector is immutable, though, so @racket[vector-set!] will not
+       work on the vector.}
+
+ @item{A @racket[quote]d @tt{#&}@racket[q-form] produces a @tech{box}. The
+       box is immutable, though, so @racket[set-box!] will not work on
+       the box.}
+
+]
+
+Beyond the syntactic contraints of @racket[q-form], the resulting list
+must have a type. So, for example, @racket[quote] cannot create a list
+that mixes numbers and symbols.
 
 @examples[#:eval demo
 'a
+'(1 2 3)
+(eval:error '(1 a))
+'((a) (b c))
 ]}
 
 @deftogether[(
@@ -331,7 +374,8 @@ before @racket[id]; that is, @racket['@#,racket[id]] and
 @defidform[unquote-splicing]
 )]{
 
-The @racket[quasiquote] form produces an @tech{S-expression},
+The @racket[quasiquote] form is similar to @racket[quote],
+but it produces an @tech{S-expression},
 and it supports escapes via @racket[unquote] and
 @racket[unquote-splicing]. A @racket[(@#,racket[unquote] expr)] form
 is replaced with the value of @racket[expr], while a
@@ -359,6 +403,7 @@ in the result S-expression.
 
 @examples[#:eval demo
 `a
+`(1 a)
 `(+ ,(number->s-exp (+ 1 2)) 3)
 `(+ ,@(list `1 `2) 3)
 ]}
@@ -1033,18 +1078,19 @@ placing a @litchar{'} in from of any @racketmodname[plait]
 expression (which is the same as wrapping it with @racket[quote])
 creates an S-expression that contains the identifiers (as symbols),
 parenthesization (as lists), and other constants as the expression
-text. Various @racket[plait] values, including symbols, numbers,
+text. Various @racketmodname[plait] values, including symbols, numbers,
 and lists, can be coerced to and from S-expression form.
 
-The representation of an S-expression is always the same as some other
-@racketmodname[plait] value, so conversion to and from an
-S-expression is effectively a cast. For example, the
-@racket[s-exp-symbol?] function determines whether an S-expression is
-a symbol; in that case, @racket[s-exp->symbol] acts the identity
-function to produce the symbol, while any other value passed to
-@racket[s-exp->symbol] raises an exception. The @racket[symbol->s-exp]
-function similarly acts as the identity function to view a symbol as
-an S-expression.
+The representation of an S-expression always reuses some other
+@racketmodname[plait] value, so conversion to and from an S-expression
+is a kind cast. For example, the @racket[s-exp-symbol?] function
+determines whether an S-expression embeds an immediate symbol; in that
+case, @racket[s-exp->symbol] extracts the symbol, while any other
+value passed to @racket[s-exp->symbol] raises an exception. The
+@racket[symbol->s-exp] function wraps a symbol as an S-expression.
+
+@margin-note{For interoperability of @tech{S-expressions} with untyped
+Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
 
 @(define-syntax-rule (converter what s-exp-X? s-exp->X X->s-exp)
   @elem{
@@ -1214,7 +1260,7 @@ Any other symbol in a @tech{pattern} matches only itself in the
 @defthing[vector-length ((Vectorof 'a) -> Number)]
 )]{
 
-A vector is similar to a list, but it supports constant-time access to
+A @deftech{vector} is similar to a list, but it supports constant-time access to
 any item in the vector and does not support constant-time extension.
 In addition, vectors are mutable.
 
@@ -1242,7 +1288,7 @@ reports the number of slots in the vector.
 @defthing[set-box! ((Boxof 'a) 'a -> Void)]
 )]{
 
-A box is like a vector with a single slot. Boxes are used primarily to
+A @deftech{box} is like a vector with a single slot. Boxes are used primarily to
 allow mutation. For example, the value of a field in a variant
 instance cannot be modified, but the field's value can be a box, and
 then the box's content can be modified.
@@ -1456,6 +1502,16 @@ The current continuation is itself represented as a function. Applying
 a continuation function discards the current continuation and replaces
 it with the called one, supplying the given value to that
 continuation.}
+
+@deftogether[(
+@defthing[s-exp-content @#,italic{no type}]
+@defthing[s-exp @#,italic{no type}]
+)]{
+
+These two functions have no type, so they cannot be used in a
+@racketmodname[plait] program. They can be used in untyped contexts
+to coerce a @racketmodname[plait] @tech{S-expression} to an plain
+Racket S-expression and vice-versa.}
 
 @; ----------------------------------------
 

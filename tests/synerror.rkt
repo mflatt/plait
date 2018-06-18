@@ -62,7 +62,7 @@
 (syn-test
  '(module m plait
     (quote #"x"))
- #rx"not an identifier")
+ #rx"disallowed content")
 
 (syn-test
  '(module m plait

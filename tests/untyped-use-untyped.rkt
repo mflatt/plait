@@ -5,4 +5,4 @@
   (unless (equal? a b)
     (error 'test "failed: ~.s" `b)))
 
-(test `(6 6) (apply-identity (lambda (x) 6) 5))
+(test '(6 6) (apply-identity (lambda (x) 6) 5))
