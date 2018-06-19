@@ -44,16 +44,16 @@
 (tl "- ('a 'a -> 'a)\n#<procedure:f>\n" 'f)
 (tl "" '(define g (lambda ([x : 'a] [y : 'b]) x)))
 (tl "- ('a 'b -> 'a)\n#<procedure:g>\n" 'g)
-(tl "- (('_a '_a -> '_a) * ('_b '_c -> '_b))\n'#(#<procedure:f> #<procedure:g>)\n"
+(tl "- (('_a '_a -> '_a) * ('_b '_c -> '_b))\n(values #<procedure:f> #<procedure:g>)\n"
     '(letrec ([f (lambda ([x : 'a] [y : 'b]) (has-type x : 'b))]
               [g (lambda ([x : 'a] [y : 'b]) x)])
        (values f g)))
 (te (regexp-quote "Number vs. (Listof Number)") '(define x : 'a (cons (has-type 1 : 'a) empty)))
-(tl "- (Number * (Number -> Number))\n'#(1 #<procedure:f>)\n"
+(tl "- (Number * (Number -> Number))\n(values 1 #<procedure:f>)\n"
     '(values
       (has-type 1 : 'a)
       (letrec ([f (lambda ([x : 'a]) x)]) f)))
-(tl "- (('_a -> '_a) * Number)\n'#(#<procedure:f> 1)\n"
+(tl "- (('_a -> '_a) * Number)\n(values #<procedure:f> 1)\n"
     '(values
       (letrec ([f (lambda ([x : 'a]) x)]) f)
       (has-type 1 : 'a)))
@@ -63,7 +63,7 @@
                (define two : 'a "two")]
          #f)))
 
-(te #rx"free type variable not allowed in an alias" '(define-type-alias Foo 'a))
+(te #rx"type variable in an alias is not yet in scope" '(define-type-alias Foo 'a))
 (tl "" '(define-type-alias (Foo 'a) 'a))
 
 ;; Should have no source inside plai-typed implementation:

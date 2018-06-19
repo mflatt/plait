@@ -1556,7 +1556,7 @@
                                     (set-box! tvars/box (cons (cons #'id t) (unbox tvars/box)))
                                     t)]
                                  [else
-                                  (raise-syntax-error 'define-type-alias "type variable must not be introduced by an alias" t)]))]
+                                  (raise-syntax-error 'define-type-alias "type variable in an alias is not yet in scope" t)]))]
                             [number (make-num t)]
                             [boolean (make-bool t)]
                             [symbol (make-sym t)]
