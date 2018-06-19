@@ -183,3 +183,57 @@
    (define (f x) (x 1))
    (f (lambda () 10)))
  #rx"typecheck failed: [^\n]*vs.")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()))
+ #rx"missing `empty` clause")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [empty 10]))
+ #rx"missing `cons` clause")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [(cons x y) 10]))
+ #rx"missing `empty` clause")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [(cons x y) 10]
+      [(cons z q) 12]))
+ #rx"variant already covered by a previous clause")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [(cons x 9) 10]
+      [else 0]))
+ #rx"expected an identifier")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [(cons x x) 10]
+      [else 0]))
+ #rx"duplicate binding variable for `cons`")
+
+(syn-test
+ '(module m plait
+    (type-case (Listof String) '()
+      [(cons x y) x]
+      [else 0]))
+ #rx"typecheck failed: String vs[.] Number")
+
+
+(syn-test
+ '(module m plait
+    (type-case (Listof Number) '()
+      [(cons x y) y]
+      [else 0]))
+ #rx"typecheck failed: .Listof Number. vs[.] Number")
+

@@ -676,17 +676,25 @@ The type of each @racket[elem] is independent.
 ]}
 
 
-@defform*/subs[#:literals (quote else)
+@defform*/subs[#:literals (quote else Listof empty cons)
                [(type-case tyid/abs val-expr
                   [(variant-id field-id ...) expr] ...)
                 (type-case tyid/abs val-expr
                   [(variant-id field-id ...) expr] ...
+                  [else expr])
+                (type-case (Listof type) val-expr
+                  [list-variant expr] ...)
+                (type-case (Listof type) val-expr
+                  [list-variant expr] ...
                   [else expr])]
                ([tyid/abs id
-                          (id type ...)])]{
+                          (id type ...)]
+                [list-variant empty
+                              (cons first-id rest-id)])]{
 
-Dispatches based on the variant of the result of @racket[val-expr],
-where @racket[val-expr] must have type @racket[tyid/abs], and
+Dispatches based on the variant of the result of @racket[val-expr].
+
+In the form that has @racket[tyid/abs], @racket[val-expr] must have type @racket[tyid/abs], and
 @racket[tyid/abs] must refer to a type defined via
 @racket[define-type]. The result is the value of @racket[expr] for the
 @racket[variant-id] that is instantiated by @racket[val-expr] or the
@@ -712,8 +720,22 @@ or an @racket[else] clause must be present.
     [(rectangle w h) (* w h)]))
 (area (circle 1))
 (area (rectangle 2 3))
-]}
+]
 
+In the @racket[(Listof type)] form, @racket[val-expr] must have type
+@racket[(Listof type)]. Each non-@racket[else] clause is either a
+@racket[(cons first-id rest-id)] clause or an @racket[empty] clause,
+and both most appear without @racket[else], or at most one of those can
+appear with @racket[else].
+
+@examples[#:eval demo
+(define (my-length l)
+  (type-case (Listof 'a) l
+    [empty 0]
+    [(cons a b) (+ 1 (my-length b))]))
+(length '(1 2 3))
+(length '(a b))
+]}
 
 @defform[#:literals (lambda)
          (try expr (lambda () handle-expr))]{

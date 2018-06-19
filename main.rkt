@@ -1032,7 +1032,11 @@
 (define-syntax type-case:
   (check-top
    (lambda (stx)
-     (syntax-case stx (else)
+     (syntax-case stx (else listof:)
+       [(_ (listof: t) expr
+           clause ...)
+        (with-syntax ([(_ . rest) stx])
+          #'(listof-type-case . rest))]
        [(_ thing . rest)
         (not (or (identifier? #'thing)
                  (syntax-case #'thing ()
@@ -1062,6 +1066,74 @@
             (type-case type expr clause ...)))]
        [_
         (signal-typecase-syntax-error stx)]))))
+
+(define-syntax (listof-type-case stx)
+  (define (clause-kind clause)
+    (syntax-case clause (else empty cons)
+      [[else . _] 'else]
+      [[empty . _] 'empty]
+      [[(cons id1 id2) . _]
+       (let ([check-id (lambda (id)
+                         (unless (identifier? id)
+                           (raise-syntax-error #f
+                                               "expected an identifier for `cons`"
+                                               stx
+                                               id)))])
+         (check-id #'id1)
+         (check-id #'id2)
+         (when (bound-identifier=? #'id1 #'id2)
+           (raise-syntax-error #f
+                               "duplicate binding variable for `cons`"
+                               stx
+                               #'id2))
+         'cons)]
+      [else
+       (raise-syntax-error #f
+                           "bad clause"
+                           stx
+                           clause)]))
+  (syntax-case stx ()
+    [(_ (_ t) expr
+        clause ...)
+     (let ([clauses (syntax->list #'(clause ...))])
+       (define done
+         (for/fold ([done '()]) ([clause (in-list clauses)]
+                                 [pos (in-naturals)])
+           (define kind (clause-kind clause))
+           (when (and (eq? kind 'else)
+                      (pos . < . (sub1 (length clauses))))
+             (raise-syntax-error #f "`else` clause not at end" stx clause))
+           (when (memq kind done)
+             (raise-syntax-error #f "variant already covered by a previous clause" stx clause))
+           (syntax-case clause ()
+             [[_ ans] (void)]
+             [_ (raise-syntax-error
+                 #f
+                 "clause does not contain a single result expression"
+                 stx
+                 clause)])
+           (cons kind done)))
+       (cond
+         [(or (equal? '(else) done)
+              (equal? '(else cons) done)
+              (equal? '(else empty) done)
+              (equal? '(cons empty) done)
+              (equal? '(empty cons) done))
+          #`(let ([v expr])
+              (cond
+                #,@(for/list ([clause (in-list clauses)])
+                     (syntax-case clause (else empty cons)
+                       [[else ans] clause]
+                       [[empty ans] #'[(empty? v) ans]]
+                       [[(cons id1 id2) ans]
+                        #'[(pair? v) (let ([id1 (car v)]
+                                           [id2 (cdr v)])
+                                       ans)]]))))]
+         [else
+          (raise-syntax-error #f
+                              (format "missing `~a` clause"
+                                      (if (memq 'empty done) 'cons 'empty))
+                              stx)]))]))
 
 (define-syntax cond:
   (check-top
@@ -1912,7 +1984,8 @@
                                              shared: parameterize:
                                              begin: cond: case: if: when: unless:
                                              or: and: set!: trace:
-                                             type-case: quote: quasiquote: time:
+                                             type-case: quote: quasiquote: time: listof:
+                                             else empty
                                              has-type
                                              list vector values: try
                                              module+: module)
@@ -2128,13 +2201,13 @@
                                (typecheck ans env tvars-box)))
                      (syntax->list #'(ans ...)))
                     res-type)]
-                 [(if: test then else)
+                 [(if: test then els)
                   (begin
                     (unify! #'test
                             (make-bool #'test)
                             (typecheck #'test env tvars-box))
                     (let ([then-type (typecheck #'then env tvars-box)])
-                      (unify! #'then then-type (typecheck #'else env tvars-box))
+                      (unify! #'then then-type (typecheck #'els env tvars-box))
                       then-type))]
                  [(when: test e ...)
                   (begin
@@ -2177,6 +2250,32 @@
                                 (unify! id (gen-tvar id #t) (typecheck id env tvars-box)))
                               ids)
                     (make-tupleof expr null))]
+                 [(type-case: (listof: elem-type) val clause ...)
+                  ;; special handling for `listof` case
+                  (syntax-case expr ()
+                    [(_ type . _)
+                     (let* ([elem-type (parse-type/accum #'elem-type tvars-box)]
+                            [type (make-listof #'type elem-type)]
+                            [res-type (gen-tvar expr)])
+                       (unify! #'val type (typecheck #'val env tvars-box))
+                       (for-each (lambda (clause)
+                                   (syntax-case clause (cons)
+                                     [[(cons id1 id2) ans]
+                                      (unify!
+                                       expr
+                                       res-type
+                                       (typecheck #'ans 
+                                                  (cons (cons #'id1 elem-type)
+                                                        (cons (cons #'id2 type)
+                                                              env))
+                                                  tvars-box))]
+                                     [[_ ans]
+                                      (unify!
+                                       expr
+                                       res-type
+                                       (typecheck #'ans env tvars-box))]))
+                                 (syntax->list #'(clause ...)))
+                       res-type)])]
                  [(type-case: type val [(variant id ...) ans] ...)
                   (let ([type (parse-mono-type #'type tvars-box)]
                         [res-type (gen-tvar expr)])
@@ -2216,6 +2315,11 @@
                                       tvars-box)])
                     (unify! #'else-ans t (typecheck #'else-ans env tvars-box))
                     t)]
+                 [(type-case: type val [(variant id ...) ans] ... [empty else-ans])
+                  (typecheck (syntax/loc expr
+                               (type-case: type val [(variant id ...) ans] ... [(empty-list) else-ans]))
+                             env
+                             tvars-box)]
                  [(type-case: . rest)
                   (signal-typecase-syntax-error expr)]
                  [(quote: e)

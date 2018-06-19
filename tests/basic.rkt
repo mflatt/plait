@@ -210,6 +210,23 @@
 (test 5 ((some-v sid) 5))
 (test "5" ((some-v sid) "5"))
 
+(test '(2 3) (type-case (Listof Number) '(1 2 3)
+               [(cons a b) b]
+               [empty empty]))
+(test 1 (type-case (Listof Number) '(1 2 3)
+          [(cons a b) a]
+          [empty 5]))
+(test 5 (type-case (Listof Number) '()
+          [(cons a b) a]
+          [empty 5]))
+
+(define (my-length l)
+  (type-case (Listof 'a) l
+    [empty 0]
+    [(cons a b) (+ 1 (my-length b))]))
+(test 5 (my-length '(1 2 3 4 5)))
+(test 4 (my-length '(a b c d)))
+
 (define ht (make-hash (list)))
 (test (none) (hash-ref ht "a"))
 (test (void) (hash-set! ht "a" 1))
