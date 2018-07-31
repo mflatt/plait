@@ -123,7 +123,7 @@
                      [symbol Symbol]
                      [string: String]
                      [char Char]
-                     [s-expression S-Expression])
+                     [s-expression S-Exp])
          -> 
          (rename-out [listof: Listof]
                      [boxof: Boxof]

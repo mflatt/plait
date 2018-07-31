@@ -28,7 +28,7 @@
 
 @defmodulelang[plait]
 
-The @racketmodname[plait] language syntactically resembles the
+The Plait language syntactically resembles the
 @racketmodname[plai] language, which is based on
 @racketmodname[scheme], but the type system is close to that of
 @hyperlink["http://smlnj.org/"]{ML}.
@@ -290,7 +290,7 @@ An expression can be a literal constant that is a number (type
 @racket[Number]), a string (type @racket[String]), a symbol (type
 @racket[Symbol]) written with @racket[quote] or @litchar{'},
 an @tech{S-expression} (type
-@racket[S-Expression]) written with @racket[quasiquote] or @litchar{`},
+@racket[S-Exp]) written with @racket[quasiquote] or @litchar{`},
 @racket[#t] (type @racket[Boolean]), @racket[#f] (type
 @racket[Boolean]), or a character (type @racket[Char]). 
 An expression also can be a bound identifier (in
@@ -1125,9 +1125,9 @@ Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
    then @racket[s-exp->X] raises an exception.})
 
 @deftogether[(
-@defthing[s-exp-symbol? (S-Expression -> Boolean)]
-@defthing[s-exp->symbol (S-Expression -> Symbol)]
-@defthing[symbol->s-exp (Symbol -> S-Expression)]
+@defthing[s-exp-symbol? (S-Exp -> Boolean)]
+@defthing[s-exp->symbol (S-Exp -> Symbol)]
+@defthing[symbol->s-exp (Symbol -> S-Exp)]
 )]{
 
 @converter[@elem{a single symbol} s-exp-symbol? s-exp->symbol symbol->s-exp]
@@ -1140,9 +1140,9 @@ Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
 ]}
 
 @deftogether[(
-@defthing[s-exp-number? (S-Expression -> Boolean)]
-@defthing[s-exp->number (S-Expression -> Number)]
-@defthing[number->s-exp (Number -> S-Expression)]
+@defthing[s-exp-number? (S-Exp -> Boolean)]
+@defthing[s-exp->number (S-Exp -> Number)]
+@defthing[number->s-exp (Number -> S-Exp)]
 )]{
 
 @converter[@elem{a single number} s-exp-number? s-exp->number number->s-exp]
@@ -1154,9 +1154,9 @@ Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
 ]}
 
 @deftogether[(
-@defthing[s-exp-string? (S-Expression -> Boolean)]
-@defthing[s-exp->string (S-Expression -> String)]
-@defthing[string->s-exp (String -> S-Expression)]
+@defthing[s-exp-string? (S-Exp -> Boolean)]
+@defthing[s-exp->string (S-Exp -> String)]
+@defthing[string->s-exp (String -> S-Exp)]
 )]{
 
 @converter[@elem{a single string} s-exp-string? s-exp->string string->s-exp]
@@ -1168,9 +1168,9 @@ Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
 ]}
 
 @deftogether[(
-@defthing[s-exp-boolean? (S-Expression -> Boolean)]
-@defthing[s-exp->boolean (S-Expression -> Boolean)]
-@defthing[boolean->s-exp (Boolean -> S-Expression)]
+@defthing[s-exp-boolean? (S-Exp -> Boolean)]
+@defthing[s-exp->boolean (S-Exp -> Boolean)]
+@defthing[boolean->s-exp (Boolean -> S-Exp)]
 )]{
 
 @converter[@elem{a single boolean} s-exp-boolean? s-exp->boolean boolean->s-exp]
@@ -1184,9 +1184,9 @@ Racket programs, see @racket[s-exp-content] and @racket[s-exp].}
 ]}
 
 @deftogether[(
-@defthing[s-exp-list? (S-Expression -> Boolean)]
-@defthing[s-exp->list (S-Expression -> (Listof S-Expression))]
-@defthing[list->s-exp ((Listof S-Expression) -> S-Expression)]
+@defthing[s-exp-list? (S-Exp -> Boolean)]
+@defthing[s-exp->list (S-Exp -> (Listof S-Exp))]
+@defthing[list->s-exp ((Listof S-Exp) -> S-Exp)]
 )]{
 
 @converter[@elem{an immediate list} s-exp-list? s-exp->list list->s-exp]
@@ -1200,7 +1200,7 @@ A list produced by @racket[s-exp->list] always contains S-expression items.
 (eval:error (list->s-exp (list 1 2 3)))
 ]}
 
-@defthing[s-exp-match? (S-Expression S-Expression -> Boolean)]{
+@defthing[s-exp-match? (S-Exp S-Exp -> Boolean)]{
 
 Compares the first S-expression, a @deftech{pattern}, to the second
 S-expression, a @deftech{target}.
@@ -1509,7 +1509,7 @@ identifier's value to itself), but it should be avoided otherwise.
 
 @defthing[display ('a -> Void)]{Output primitive.}
 
-@defthing[read (-> S-Expression)]{Input primitive.}
+@defthing[read (-> S-Exp)]{Input primitive.}
 
 @defthing[void (-> Void)]{Void primitive.}
 
@@ -1558,7 +1558,7 @@ and vice-versa.}
 @defidform[Symbol]
 @defidform[String]
 @defidform[Char]
-@defidform[S-Expression]
+@defidform[S-Exp]
 @defidform[Void]
 )]{Primitive types.}
 

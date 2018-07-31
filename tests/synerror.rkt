@@ -77,12 +77,12 @@
 (syn-test
  '(module m plait
     (quasiquote (unquote 5)))
- #rx"Number vs. S-Expression")
+ #rx"Number vs. S-Exp")
 
 (syn-test
  '(module m plait
     (quasiquote (1 (unquote-splicing 5) 3)))
- #rx"Number vs. .Listof S-Expression.")
+ #rx"Number vs. .Listof S-Exp.")
 
 
 (syn-test

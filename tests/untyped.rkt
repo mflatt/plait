@@ -18,7 +18,7 @@
                     [vector-immutable : ('a 'a 'a -> (vectorof 'a))])
           [+ plus]))
 
-(define x : S-Expression `(a 2 "c" '(d)))
+(define x : S-Exp `(a 2 "c" '(d)))
 (define (f [y : Number]) y)
 
 (print-only-errors #t)
