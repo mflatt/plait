@@ -30,7 +30,7 @@
 
 The Plait language syntactically resembles the
 @racketmodname[plai] language, which is based on
-@racketmodname[scheme], but the type system is close to that of
+@racketmodname[racket], but the type system is close to that of
 @hyperlink["http://smlnj.org/"]{ML}.
 
 @table-of-contents[]
