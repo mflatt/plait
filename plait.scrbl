@@ -37,6 +37,10 @@ The Plait language syntactically resembles the
 
 @; --------------------------------------------------
 
+@include-section["tutorial.scrbl"]
+
+@; --------------------------------------------------
+
 @section{Definitions}
 
 The body of a @schememodname[plait] module is a sequence of

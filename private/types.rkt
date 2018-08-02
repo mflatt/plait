@@ -178,7 +178,7 @@
    [(sym? t) 'Symbol]
    [(str? t) 'String]
    [(chr? t) 'Char]
-   [(sexp? t) 'S-Expression]
+   [(sexp? t) 'S-Exp]
    [(vd? t) 'Void]
    [(arrow? t) `(,@(map (type->datum tmap) (arrow-args t))
                  ->
