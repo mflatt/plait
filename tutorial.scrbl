@@ -15,10 +15,6 @@
 
 @title[#:style 'toc]{Tutorial}
 
-This chapter provides a crash course in Plait, especially for readers
-who are not already familiar with Racket or other members of the Lisp
-family of languages.
-
 @local-table-of-contents[]
 
 @; ----------------------------------------
@@ -32,7 +28,7 @@ window, type
 @racketmod[plait]
 
 and click the @onscreen{Run} button (or use the keyboard shortcut
-shown in the @onscreen{Racket} menu). In the bottom window, type
+shown in the @onscreen{Racket} menu). In the bottom part of the window, type
 @racket[1] and hit Return, and you should see this result:
 
 @interaction[1]
@@ -42,17 +38,17 @@ and the value of the expression is @racketresultfont{1}.
 
 In this tutorial, we will mostly show expressions as if typed in that
 bottom area. You can also put the expressions in the top area and hit
-@onscreen{Run} again, but the type of the result will not print in
-that case.
+@onscreen{Run} again, but in that case, the type of the result will
+not print before the result.
 
 In a few places, the tutorial shows lines that include a semicolon,
 @litchar{;}. A semicolon starts a comment that continues to the end of
 the line.
 
 @; ----------------------------------------
-@section{Simple Data}
+@section[#:tag "data-tutorial"]{Simple Data}
 
-Various kinds of numbers are supported, all with type @racket[Number]:
+Plait supoprts various kinds of numbers, all with type @racket[Number]:
 
 @interaction[1 0.5 1/2 1+2i]
 
@@ -67,15 +63,16 @@ The booleans @defterm{true} and @defterm{false} are written
 
 @interaction[#t #f #true #false]
 
-Strings are written the usual way with a starting and exnding @litchar{"}:
+Strings are written the usual way with a starting and ending @litchar{"}:
 
-@interaction["apple" "banana cream pie"]
+@interaction["apple" "banana cream pie"
+             "yes, \"escape\" quotes with backslash"]
 
 In addition to strings, Plait includes string-like values called
 @defterm{symbols}. A symbol is written with a single quote @litchar{'}
 followed by a sequence of non-whitespace characters.
 
-@examples[
+@interaction[
 'apple
 'banana-cream-pie
 'a->b
@@ -100,7 +97,7 @@ and escaping characters, so don't use them.
 Individual characters are infrequently used in Plait, but they're
 written with @litchar{#\}:
 
-@examples[
+@interaction[
 #\a
 #\b
 #\A
@@ -108,7 +105,7 @@ written with @litchar{#\}:
 ]
 
 @; ----------------------------------------
-@section{Using Built-in Functions}
+@section[#:tag "built-ins-tutorial"]{Using Built-in Functions}
 
 Plait includes some of the usual functions on numbers, like
 @racket[floor] and @racket[max]. To call a function, start with an
@@ -124,7 +121,7 @@ The parenthesis must be @italic{@bold{before the function}}, not
 after. Don't use commas between arguments. Also, @italic{@bold{extra
 parentheses are not allowed}}. If you include extra parentheses around
 @racket[3], for example, then Plait will complain that @racket[3] is
-not a function:
+not a function, since the parentheses mean a function call:
 
 @interaction[
 (eval:alts (max (@#,pink[@racket[3]]) 5) (eval:error (max (3) 5)))
@@ -137,12 +134,12 @@ The same error happens if you add parentheses around the call to
 (eval:alts (@#,pink[@racket[(max 3 5)]]) (eval:error ((max 3 5))))
 ]
 
-The type of a function is written with @racket[->] in parentheses with
-the argument types before the arrow and the result type after the
-arrow. A function is a value, so if you evaluate just @racket[max]
-without calling it, then Plait will show the type and print that the
-result is a procedure (which is synonymous with ``function'' in
-Plait):
+The type of a function is written with @racket[->] in parentheses. The
+function's argument types appear before the arrow, and the function's
+result type is after the arrow. A function is a value, so if you
+evaluate just @racket[max] without calling it, then Plait will show
+the type and print that the result is a procedure (which is synonymous
+with ``function'' in Plait):
 
 @interaction[
 max
@@ -190,7 +187,7 @@ grouped with its arguments in parentheses is called
 
 Treating @racket[+] like any other function makes Plait simpler, as
 does using parenthesized prefix notation. Since you didn't have to
-define Plait, you may not care that Plait is simpler this way. But if
+create Plait, you may not care that Plait is simpler this way. But if
 you're building your own interpreter in a class that's about
 programming languages, then Plait's regularity turns out to be a
 convenient design to imitate; you can spend more time studying the
@@ -223,9 +220,9 @@ click on any of the function names her eto jump to the documentation:
 Note that some operations work on multiple types. For example,
 @racket[equal?] works on any two values, as long as the two values
 have the same type. That flexibility and constraint is reflected in
-the type of @racket[equal?] by a symbol placeholder @racket['a] that
-is effectively substituted by a specific type for each use of
-@racket[equal?]:
+the type of @racket[equal?] by a symbol placeholder @racket['a], which
+you can read as ``a type to be picked later.'' A specific type is
+picked for every individual use of @racket[equal?]:
 
 @interaction[
 (equal? 1 1)
@@ -235,11 +232,11 @@ equal?
 ]
 
 @; ----------------------------------------
-@section{Conditionals}
+@section[#:tag "cond-tutorial"]{Conditionals}
 
 The @racket[if] form works in the usual way, and it follows the
-parenthesized-prefix convention of appearing after an open parenthesis
-and grouped with its subexpressions:
+parenthesized-prefix convention of being grouped with its
+subexpressions with parentheses:
 
 @interaction[
 (if (equal? "apple" "banana")
@@ -249,17 +246,19 @@ and grouped with its subexpressions:
 
 The line breaks above don't matter to Plait, but readers of your
 programs will appreciate it if you normally put the ``then'' and
-``else'' branches on their own lines and correctly intented (where
-``correctly'' is ``the indentation that DrRacket gives you
-automatically'').
+``else'' branches on their own lines and correctly intent them. The
+correct indentation is the indentation that DrRacket gives you
+automatically when you hit Return after @racket[(equal? "apple"
+"banana")]. If you ever need to reindent a region of code, you can
+select the region and hit Tab.
 
 The @racket[cond] form is a multi-way @racket[if]. A @racket[cond]
 form has a sequence of clauses, where each clause has a ``question''
-and a result expression to evaluate if the question produces true. The
-@racket[cond] form tries the clauses in order, and as soon as it finds
-a true result from a question, it produces the corresponding result.
-The last clause's question cal be @racket[else] as a synonym for
-@racket[#t].
+and a result expression. The result expression is used only when the
+question produces true. The @racket[cond] form tries the clauses in
+order, and as soon as it finds a true result from a question, it
+produces the corresponding result. The last clause's question cal be
+@racket[else] as a synonym for @racket[#t].
 
 @interaction[
 (cond
@@ -285,11 +284,11 @@ The last clause's question cal be @racket[else] as a synonym for
 
 Plait doesn't distinguish between square brackets @litchar{[} and
 @litchar{]} and parentheses @litchar{(} and @litchar{)}, as long as
-like balances like. You could use parentheses instead of square
-brackets in the above examples---but don't. Plait programmers should
-use square brackets in particular places by convention to help make
-programs more readable to others. Follow the conventions that you see
-in this tutorial.
+each opener and closer match. You could use parentheses instead of
+square brackets in the above examples---but don't. Plait programmers
+should use square brackets in specific places by convention to make
+programs more readable. Follow the conventions that you see in this
+tutorial.
 
 The @racket[and] and @racket[or] forms are short-cicuiting, too, and
 they work with any number of boolean subexpressions:
@@ -320,15 +319,15 @@ a list must have the same type. The @racket[list] form creates a list:
 As you can see, the type of a list is written with @racket[Listof] and
 then the type of the elements of the list. You also see that the
 result is printed using @litchar{'}. You can use a @litchar{'} to
-create a list, but only for literal-value content (i.e,. no
-subexpressions):
+create a list, but only for literal-value content (i.e., no
+subexpressions to evaluate):
 
 @interaction[
 '(1 2 7)
 (eval:error '(1 2 (+ 3 4)))
 ]
 
-To understand that last message, start by observing that the
+To understand that last error message, start by observing that the
 @litchar{'} for a literal list is the same as a the @litchar{'} for a
 symbol. As it turns out, a @litchar{'} for a list implicitly
 distributes the @litchar{'} to each element of the list. So,
@@ -346,7 +345,7 @@ because @litchar{'} has no effect on a number, boolean, or string:
 
 The expression @racket['(1 2 (+ 3 4))] fails because that's the same
 as @racket[(list 1 2 '(+ 3 4))], and @racket['(+ 3 4)] fails because
-it's the same as @racket[(list '+ 3 4)] and a list cannot mix a symbol
+it's the same as @racket[(list '+ 3 4)], but a list cannot mix a symbol
 with numbers.
 
 A list is immutable. That is, the value @racket['(1 2 3)] is as
@@ -354,8 +353,8 @@ unchanging as the numbers @racket[1], @racket[2], and @racket[3]
 within the list. You can't change a list to add new elements to
 it---but you can create a new list that is like the old one, except
 that it has another element. The @racket[cons] function takes an
-element and a list and ``adds'' the element to the front of the list
-inthe sense that it creates a new list with all of the elements:
+element and a list and ``adds'' the element to the front of the list,
+creating a new list with all of the elements:
 
 @interaction[
 (cons 1 '(2 3))
@@ -384,11 +383,11 @@ cons
 append
 ]
 
-Mixing them up will correspondingly trigger type errors:
+Mixing them up will trigger a type error:
 
 @interaction[
-(eval:error (append 1 '(2 3)))
 (eval:error (cons '(1) '(2 3)))
+(eval:error (append 1 '(2 3)))
 ]
 
 A list doesn't have to contain any values:
@@ -440,9 +439,10 @@ is removed.
 
 Plait also provides @racket[second], @racket[third], @racket[fourth],
 and @racket[list-ref]. Those functions are sometimes useful to extract
-pieces of a list that has a known shape, but functions that take the
-first of a list and recur with the rest turn out to be be more common.
-Here's a function that check whether "milk" is in a list of string:
+pieces of a list that has a known shape. Functions that take the
+@racket[first] of a list and recur with the @racket[rest] turn out to
+be be more common. Here's a function that check whether
+@racket["milk"] is in a list of strings:
 
 @interaction[
 (define (got-milk? [_items : (Listof String)])
@@ -513,12 +513,14 @@ is-odd?
 (is-odd? 12)
 ]
 
-Plait inferred that @racket[pi] and @racket[tau] have type
-@racket[Number] and that @racket[is-odd?] has type @racket[(Number ->
-Boolean)]. Programs are often easier to read and understand if you
-write explicitly the type that would otherwise be inferred. Declaring
-types can sometimes help improve or localize error messages when
-Plait's attempt to infer a type (scanning the entire program) fails.
+In our definitions of @racket[pi] and @racket[tau], plait inferred
+that the newly defined names have type @racket[Number] and that
+@racket[is-odd?] has type @racket[(Number -> Boolean)]. Programs are
+often easier to read and understand if you write explicitly the type
+that would otherwise be inferred. Declaring types can sometimes help
+improve or localize error messages when Plait's attempt to infer a
+type fails, since inference can other end up depending on the whole
+program.
 
 Declare a type for a constant by writing @racket[:] followed by a type
 after the defined identifier:
@@ -529,7 +531,7 @@ after the defined identifier:
 ]
 
 For a function, attach a type to an argument by writing square
-brackets around the argument name, @racket[:] and a type. Write the
+brackets around the argument name, @racket[:], and a type. Write the
 function's result type with @racket[:] and the type after the
 parentheses that group the function name with its arguments.
 
@@ -732,10 +734,10 @@ The general form of a @racket[type-case] expresison is
 
 The @racket[_value-expression] must produce a value matching
 @racket[_Type]. Every variant of @racket[_Type] must be represented by
-a clause that has a @racket[_variant-name] and @racket[_field-var]s.
-The number of @racket[_field-var]s must match the declared number of
-fields for the variant. The type checker can ensure all of those
-constraints.
+a clause with a matching @racket[_variant-name]. For that clause, the
+number of @racket[_field-var]s must match the declared number of
+fields for the variant. The type checker can check all of those
+requirements.
 
 To produce a value, @racket[type-case] determines the variant that is
 instanited by the result of @racket[_value-expression]. For the clause
@@ -754,8 +756,13 @@ with @racket[type-case]:
 (animal-color slimey)
 ]
 
-Try changing the body of @racket[animal-color] to leave out a clause
-or a field variable and see what happens.
+Put the definitions of @racket[Anmal] and @racket[animal-color] in
+DrRacket's definitions area. Then, you can mouse over @racket[_a] in
+@racket[animal-color] to confirm that it means the @racket[_a] that is
+passed as an argument. Mouse over @racket[_col] to see that it means
+one of the variant-specific fields. Try changing the body of
+@racket[animal-color] to leave out a clause or a field variable and
+see what error is reported when you hit @onscreen{Run}.
 
 You should think of @racket[type-case] as a pattern-matching form. It
 matches a value like @racket[(tiger 'orange 12)] to the pattern
@@ -765,11 +772,12 @@ matches a value like @racket[(tiger 'orange 12)] to the pattern
 @racket[(tiger _col _sc)], but it matches the pattern
 @racket[(snake _col _wgt _f)].
 
-At the end of @secref["lists-tutorial"], we saw a function similar to
-the dangerous, @racket[cond] version of @racket[animal-color], but
-that previous function was for lists. The @racket[type-case] form
-works on list types with @racket[empty] and @racket[(cons _fst _rst)]
-patterns, so here's an improved @racket[got-milk?]:
+At the end of @secref["lists-tutorial"], we saw a @racket[got-milk?]
+function that uses @racket[cond], similar to the way the dangerous
+version of @racket[animal-color] uses @racket[cond]. The
+@racket[type-case] form works on list types with @racket[empty] and
+@racket[(cons _fst _rst)] patterns, so here's an improved
+@racket[got-milk?]:
 
 @interaction[
 (define (got-milk? [_items : (Listof String)])
@@ -781,8 +789,49 @@ patterns, so here's an improved @racket[got-milk?]:
 (got-milk? '("cookies" "milk"))
 ]
 
+Note that there are no parentheses around @racket[empty] in
+@racket[got-milk?]. That's because @racket[empty] is never called as a
+constructor function---it's simply a constant value---so the pattern
+form doesn't have parentheses, either. The @racket[empty] pattern is a
+special case in @racket[type-case]; all other variant names in a
+@racket[type-case] form will have parentheses, since they will always
+be used a constrcutor functions, even if the variant has no fields.
+
+@interaction[
+(define-type Grade
+  (letter [alpha : Symbol])
+  (pass-fail [pass? : Boolean])
+  (incomplete))
+(letter 'A)
+(pass-fail #t)
+(incomplete)
+(define (passed-course? [_g : Grade]) : Boolean
+  (type-case Grade _g
+    [(letter _a) (not (eq? _a 'F))]
+    [(pass-fail _p?) _p?]
+    [(incomplete) #f]))
+(passed-course? (letter 'B))
+(passed-course? (incomplete))
+]
+
+You can also use @racket[else] for a final clause in
+@racket[type-case] to catch any variants that are not already covered.
+
+@interaction[
+(define (high-pass? [_g : Grade]) : Boolean
+  (type-case Grade _g
+    [(letter _a) (eq? _a 'A)]
+    [else #f]))
+(high-pass? (letter 'A))
+(high-pass? (incomplete))
+]
+
+When you use @racket[else], however, the type checker is less helpful
+for making sure that you've considered all cases.
+
+
 @; ----------------------------------------
-@section[#:tag "testing-tutorial"]{Testing}
+@section[#:tag "testing-tutorial"]{Testing and Debugging}
 
 Plait includes built-in support for testing your programs. The
 @racket[test] form takes two expressions and makes sure that they
@@ -811,6 +860,20 @@ tests, so that only failing test strigger output, use
 (test (taste "anchovies") 'bad)
 ]
 
+To test that an expression reports an expected error, use
+@racket[test/exn]. The @racket[test/exn] form's section expression
+should produce a string, and @racket[test/exn] checks that an error is
+reported where the string occurs in the error message. You can only
+test for errors that your program specifically reports using the
+@racket[error] function.
+
+@interaction[
+(define (always-fail [n : Number]) : Number
+  (error 'always-fail "we're not actually returning a number"))
+(test/exn (always-fail 42) "not actually")
+(test/exn (always-fail 42) "should not get called")
+]
+
 When you write a program (in the definitions area of DrRacket), the
 order of function definitions generally does not matter, even if the
 functions call each other. A test at the top level of a program,
@@ -827,12 +890,52 @@ code:blank
   (list 'still (taste s)))
 ]
 
+A good set of tests will cause all expressions in a program to be
+evaluated at least once. DrRacket can help you check that your program
+has good test coverage. In DrRacket's @onscreen{Language} menu, select
+@onscreen{Choose Language}, click @onscreen{Show Details}, click
+@onscreen{Submodules to run}, and then select the @onscreen{Syntactic
+test suite coverage} option. After selecting that option, when you
+@onscreen{Run} a program, it will stay its normal color if all is
+well. If some expression has not been covered, however, the program
+text will go mostly black, and any expression that has not been
+evaluated will turn orange with a black background. Resolve the
+problem and restore your program text's color by adding more tests.
+
+When you're debugging a program, it may be helpful to see the
+arguments that are passed to a particular function and the results
+that the function returns. You can enable that kind of tracing for a
+function with the @racket[trace] declaration, which must appear after
+the function's definitions.
+
+@racketblock[
+(define (got-milk? [_items : (Listof String)])
+  (type-case (Listof String) _items
+    [empty #f]
+    [(cons _item _rst-items) (or (string=? _item "milk")
+                                 (got-milk? _rst-items))]))
+(trace got-milk?)
+]
+
+@interaction[
+#:hidden
+(require (typed-in racket/trace [trace : ('a -> Void)] [untrace : ('a -> Void)]))
+(define supressed (trace got-milk?))
+]
+
+@interaction[
+(got-milk? empty)
+(got-milk? '("cookies" "milk"))
+]
+
+@interaction[#:hidden (untrace got-milk?)]
+
 @; ----------------------------------------
 @section[#:tag "lambda-tutorial"]{Anonymous Functions}
 
 After we define a function, the name of the function can be used as a
-value without calling it. If you just evaluate te function name, then
-Plait will print something like @racketresultfont{#<procedure>}.
+value without calling it. If you just evaluate the function name, then
+Plait will print something like @nonbreaking{@racketresultfont{#<procedure>}}.
 
 @interaction[
 (define (plus-five _n)
@@ -841,16 +944,16 @@ plus-five
 ]
 
 More usefully, you might pass the function to another function that
-uses it. For example, the @racket[map] function takes a function and a
+calls it. For example, the @racket[map] function takes a function and a
 list, and it applies the function to each element of the list to
-produce a new lists
+produce a new list.
 
 @interaction[
 (map plus-five
      '(1 2 3))
 ]
 
-Soetimes, and especially with @racket[map], you need a one-off
+Sometimes, and especially with @racket[map], you need a one-off
 function that doesn't need to be defined for everyone else to see, and
 it doesn't even need a name. You can make an @defterm{anonymous function}
 by using @racket[lambda]:
@@ -862,7 +965,7 @@ by using @racket[lambda]:
 ]
 
 The form @racket[(lambda (_n) (+ _n 6))] means ``the function that
-takes an argument @racket[_n] and returns @racket[(+ _n 6)]. You can
+takes an argument @racket[_n] and returns @racket[(+ _n 6)].'' You can
 evaluate a @racket[lambda] form without passing it anywhere, although
 that isn't particularly useful:
 
@@ -954,21 +1057,20 @@ type works with a convenient @litchar{'}-like shortcut. The
 `(+ 1 2)
 ]
 
-When an S-expression's immediate structure is list-like, then you can
-corece the S-expression to a list using @racket[s-exp->list]. The
-result is a list of @racket[S-Exp]:
+When an S-expression is list-like, then you can corece the
+S-expression to a list using @racket[s-exp->list]. The result is a
+list of @racket[S-Exp]s:
 
 @interaction[
 (s-exp->list `(+ 1 2))
 ]
 
-If an S-expression doesn't have an immediate list structure, the
-coercion fails. Other coercions include @racket[s-exp->number] and
-@racket[s-exp->symbol]. You can go the other way with
-@racket[number->s-exp], @racket[symbol->s-exp], and
-@racket[list->s-exp]. Functions like @racket[s-exp-list?] and
-@racket[s-exp-number?] report whether an S-expression is list
-structured or a number.
+If an S-expression isn't list-like, the coercion fails. Other
+coercions include @racket[s-exp->number] and @racket[s-exp->symbol].
+You can go the other way with @racket[number->s-exp],
+@racket[symbol->s-exp], and @racket[list->s-exp]. Functions like
+@racket[s-exp-list?] and @racket[s-exp-number?] report whether an
+S-expression is list-like or number-like.
 
 @interaction[
 `1
@@ -994,8 +1096,8 @@ programs.
 `{* 3 {+ 4 x}}
 ]
 
-The S-expression @litchar{`} has one extra feature that the
-list-consructing @litchar{'} lacks: a way to escape back to the
+The S-expression @litchar{`} has an extra feature that the
+list-constructing @litchar{'} lacks: a way to escape back to the
 evaluated-expression world by using @litchar{,} (i.e., a comma). The
 escaped expression must produce a S-expression, and the result
 S-expression takes the place of the escape:
@@ -1004,12 +1106,21 @@ S-expression takes the place of the escape:
 `{+ 1 ,(number->s-exp (+ 3 4))}
 ]
 
+The @litchar[",@"] escape form is similar to @litchar{,}, but
+@litchar[",@"] is a @defterm{splicing} escape that expects a list of
+S-expressions and inlines the elements into the enclosing list-like
+S-expression.
+
+@interaction[
+`{+ ,@(list (number->s-exp 1) (number->s-exp (+ 3 4)))}
+`{+ ,(list->s-exp (list (number->s-exp 1) (number->s-exp (+ 3 4))))}
+]
 
 @; ----------------------------------------
 @section[#:tag "s-exp-match-tutorial"]{S-Expression Matching}
 
 Since the @racket[equal?] function works on any kind of value, it can
-compare to S-expressions to determine whether they are the same:
+compare two S-expressions to determine whether they are the same:
 
 @interaction[
 (equal? `{+ 1 2} `{+ 1 2})
@@ -1017,11 +1128,10 @@ compare to S-expressions to determine whether they are the same:
 ]
 
 Suppose that you don't just want to recognize @racket[`{+ 1 2}], but
-you want to recognize any S-expression that has a list structure with
-three parts, the first element in that list is the S-expression form
-of @racket[+], and the other two elements of the list are number
-S-expressions. That recognition problem is tedious to implement, due
-to the many required many checks and cercions.
+you want to recognize any list-like S-expression that has three
+elements where the first element is @racket['+]-like and the other two
+elements are number-like. That recognition problem is tedious to
+implement, due to the many required many checks and coercions.
 
 @interaction[
 (define (is-plus-numbers? se)
@@ -1066,7 +1176,7 @@ symbol, and @racket[ANY], which matches anything.
 The symbol @racket[...] is even more special. It causes the preceeding
 S-expression to match zero or more times to cover multiple elements in
 an enclosing list. For example, @racket[`{SYMBOL ...}] would match a
-list-structured S-expression that has any number of symbols.
+list-like S-expression that has any number of symbol-like elements.
 
 @interaction[
 (define (any-argument-lambda? se)
@@ -1078,11 +1188,11 @@ list-structured S-expression that has any number of symbols.
 ]
 
 @; ----------------------------------------
-@section[#:tag "tutples-tutorial"]{Tuples}
+@section[#:tag "tuples-tutorial"]{Tuples and Options}
 
 If you want to combine a small number of values in a single value, and
 if the values have different types (so that a list doesn't work), you
-can use a @defterm{tuple} as an alternative to creating a fresh type
+can use a @defterm{tuple} as an alternative to creating a new datatype
 with a single variant.
 
 The @racket[values] form creates a tuple from any number of values.
@@ -1094,15 +1204,22 @@ tuple, separating the types with @racket[*].
 (values '(1 2 3) #f)
 ]
 
-The primary way to extract the component values from a tuple is to
-match it up with names using @racket[define-values].
+Using @racket[values], this @racket[consume] function can effectively
+return two values each time that it is called:
 
 @interaction[
-(define (consume s)
+#:no-prompt
+(define (consume [s : String]) : (Symbol * String)
   (cond
    [(equal? s "milk") (values 'drink "Mmm....")]
    [(equal? s "beets") (values 'eat "Ugh....")]
    [else (values 'sleep "Zzz...")]))
+]
+
+To extract the component values from a tuple, match the tuple with
+names using @racket[define-values].
+
+@interaction[
 (consume "milk")
 (define-values (action response) (consume "beets"))
 action
@@ -1112,6 +1229,142 @@ response
 The convenience functions @racket[fst] and @racket[snd] can be used in
 the special case of a 2-value tuple to extract the first or second
 component.
+
+@interaction[
+(snd (consume "milk"))
+]
+
+Sometimes, instead of always returning multiple values, you'll want a
+function that returns either one value or no value. A tuple is no help
+for that case, but Plait predefines a helpful datatype called
+@racket[Optionof]:
+
+@racketblock[
+(define-type (Optionof 'a)
+  (none)
+  (some [v : 'a]))
+]
+
+The @racket['a] in this definition of @racket[Optionof] indicates that
+you can return any kind of value in a @racket[some].
+
+@interaction[
+(define (get-slogan [_s : String]) : (Optionof String)
+  (cond
+   [(equal? _s "milk") (some "It does a body good")]
+   [else (none)]))
+(get-slogan "milk")
+(get-slogan "iced tea")
+(type-case (Optionof String) (get-slogan "moon pie")
+  [(some s) s]
+  [(none) "no comment"])
+]
+
+@; ----------------------------------------
+@section[#:tag "program-tutorial"]{Programs and Modules}
+
+When you write a program using @racket[@#,hash-lang[]
+@#,racketmodname[plait]], you are technically defining a
+@defterm{module}. A Plait module contains a mixture of expressions and
+definitions. The expressions are evaluated in order, and the value of
+each expression is printed after the expression is evaluated (unless
+the result value has type @racket[Void]). The order of function
+definitions doesn't matter, as long as a function definition appears
+before any expression that eventually calls the function.
+
+@racketmod[
+plait
+code:blank
+(define (is-odd? _x)
+  (if (zero? _x)
+      #f
+      (is-even? (- _x 1))))
+code:blank
+(is-odd? 0) (code:comment "ok")
+@#,tt{#;}(is-odd? 1) (code:comment @#,t{won't work, because it needs @racket[is-even?]})
+code:blank
+(define (is-even? _x)
+  (if (zero? _x)
+      #t
+      (is-odd? (- _x 1))))
+code:blank
+(is-even? 1) (code:comment "ok")
+(is-odd? 1) (code:comment "ok")
+]
+
+Note the use of @litchar{#;} in the example above. A @litchar{#;}
+comments out the entire form that follows it, which is handy for
+commenting out a definition of expression, even when the definition or
+expression spans multiple lines.
+
+Modules written with the @racket[module] form can be nested in other
+modules. A nested module is called a @defterm{submodule}. Plait
+programs don't often use submodules that are written with
+@racket[module], but the @racket[module+] form is more common. A
+@racket[module+] form creates a submodule by merging all
+@racket[module+]s that use the same name. A typical use of
+@racket[module+] is to move all of a program's tests into a
+@racket[test] submodule.
+
+@racketmod[
+plait
+code:blank
+(define (is-odd? _x)
+  (if (zero? _x)
+      #f
+      (is-even? (- _x 1))))
+code:blank
+(module+ test
+  (is-odd? 0)
+  (is-odd? 1))
+code:blank
+(define (is-even? _x)
+  (if (zero? _x)
+      #t
+      (is-odd? (- _x 1))))
+code:blank
+(module+ test
+  (is-even? 1)
+  (is-odd? 1))
+]
+
+The submodule name @racket[test] is special, because DrRacket
+automatically runs a @racket[test] submodule (if one is present) after
+running the enclosing module. In the above example, since the
+@racket[test] submodule is run after the encloding module that defines
+@racket[is-odd?] and @racket[is-even?], the tests can use all of the
+functions. Another advantage of putting tests in a @racket[test]
+submodule is that you can turn off the tests. In DrRacket's
+@onscreen{Language} menu, select @onscreen{Choose Language}, click
+@onscreen{Show Details}, click @onscreen{Submodules to run}, and then
+uncheck the @onscreen{test} item.
+
+A Plait module's definitions are automatically exported from the
+module. You can import the definitions of another module by using the
+@racket[require] form, typically with a string that is a relative path
+to the module to import.
+
+@racketmod[#:file "math.rkt"
+plait
+(define pi 3.14)
+(define tau (+ pi pi))
+]
+
+@racketmod[#:file "circle.rkt"
+plait
+(require "math.rkt")
+
+(define (circle-area [r : Number]) : Number
+  (* pi (* r r)))
+]
+
+A submodule created by @racket[module+] automatically imports the
+bindings of the enclosing module, which is why @racket[(module+ test
+....)] submodules can automatically access definitions for testing. In
+contrast, if you write definitions inside @racket[(module+ test
+....)], then the definitions can be used for tests in any
+@racket[(module+ test ....)], but the enclosing module will not see
+the definitions.
 
 @; ----------------------------------------
 @section[#:tag "state-tutorial"]{State}

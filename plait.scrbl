@@ -24,6 +24,9 @@
      (define racket-shared @racket[shared])))
   (define-racket-shared racket-shared))
 
+@(define (tutorial tag)
+   @margin-note{For an introduction, see the tutorial section @secref[tag].})
+
 @title{Plait Language}
 
 @defmodulelang[plait]
@@ -57,6 +60,8 @@ types).
                 (define (id id/type ...) : type expr)]
                ([id/type id
                          [id : type]])]{
+
+@tutorial["definitions-tutorial"]
 
 Defines @racket[id].
 
@@ -99,6 +104,8 @@ b
               ([id/type id
                         [id : type]])]{
 
+@tutorial["tuples-tutorial"]
+
 Defines each @racket[id/type] (with an optional type declaration) to
 be the values within the @tech{tuple} produced by @racket[expr], which
 must have as many values as declared @racket[id/type]s.
@@ -117,6 +124,8 @@ c]}
                 ...)
               ([tyid/abs id
                          (id '@#,racket[_arg-id] ...)])]{
+
+@tutorial["datatypes-tutorial"]
 
 Defines a type (when @racket[tyid/abs] is @racket[id]) or type
 constructor (when @racket[tyid/abs] has the form @racket[(id 'id
@@ -189,6 +198,8 @@ reference any type variables that do not yet have a scope.}
                      (opaque-type-in module-path [type-id predicate-id] ...)
                      (rename-in spec [orig-id new-id] ...)])]{
 
+@tutorial["program-tutorial"]
+
 Imports from each @racket[module-path].
 
 When a @racket[module-path] is not wrapped with @racket[typed-in] or @racket[opaque-type-in], then
@@ -213,6 +224,8 @@ untyped code) for instances of the datatype.
 
 @defform[(trace id ...)]{
 
+@tutorial["testing-tutorial"]
+
 Traces subsequent calls---showing arguments and results---for
 functions bound to the @racket[id]s.  This form can be used only in a
 module top level, and only for tracing functions defined within the
@@ -234,6 +247,8 @@ id)]:
 
 
 @defform[(module+ id form ...)]{
+
+@tutorial["program-tutorial"]
 
 Declares/extends a submodule named @racket[id], which is particularly
 useful for defining a @racketidfont{test} submodule to hold tests that
@@ -320,6 +335,8 @@ has type @racket[type].
                        (code:line @#,tt{#}(q-form ...))
                        (code:line @#,tt{#&}q-form)])]{
 
+@tutorial["lists-tutorial"]
+
 The @racket[quote] form is usually written as just a @litchar{'}
 before a @racket[q-form]; that is, @racket['@#,racket[id]] and
 @racket[(@#,racket[quote] id)] are equivalent.
@@ -381,6 +398,8 @@ that mixes numbers and symbols.
 @defidform[unquote-splicing]
 )]{
 
+@tutorial["s-exp-tutorial"]
+
 The @racket[quasiquote] form is similar to @racket[quote],
 but it produces an @tech{S-expression},
 and it supports escapes via @racket[unquote] and
@@ -431,6 +450,8 @@ keyword.
                ([id/ty id
                        [id : type]])]{
 
+@tutorial["lambda-tutorial"]
+
 An anonymous function which takes as many argument as specified
 @racket[id/ty]s and produces the result of @racket[expr]. Each
 argument has an optional type specification, and when a type is
@@ -452,6 +473,8 @@ function.
           [(cond [test-expr expr] ...)
            (cond [test-expr expr] ... [else expr])]]
 )]{
+
+@tutorial["cond-tutorial"]
 
 An @racket[if] form produces the value of the first @racket[expr] if
 @racket[test-expr] produces true or the value of the second
@@ -509,6 +532,8 @@ then symbol dispatch is inferred.
 
 @defform[(begin expr ...+)]{
 
+@tutorial["state-tutorial"]
+
 Evaluates the @racket[expr]s in sequence, producing the result of the last @racket[expr].
 
 @examples[#:eval demo
@@ -543,6 +568,8 @@ returning @racket[(void)]. A @racket[when] form evaluates its
 @defform[(let ([id rhs-expr] ...) expr)]
 @defform[(let* ([id rhs-expr] ...) expr)]
 )]{
+
+@tutorial["definitions-tutorial"]
 
 Local binding forms. The @racket[local] form accommodates multiple
 definitions that visible only among the definitions and the body
@@ -617,6 +644,8 @@ the parameter produces by @racket[param-expr] is set to
 
 @defform[(set! id expr)]{
 
+@tutorial["state-tutorial"]
+
 Mutates @racket[id] to have the value of @racket[expr].
 
 @examples[#:eval demo
@@ -629,6 +658,8 @@ x]}
 @defform[(and expr ...)]
 @defform[(or expr ...)]
 )]{
+
+@tutorial["cond-tutorial"]
 
 Boolean combinations with short-circuiting: as soon as an
 @racket[expr] produces false in @racket[and] or true in @racket[or],
@@ -647,6 +678,8 @@ must have type @racket[Boolean].
 
 @defform[(list elem ...)]{
 
+@tutorial["lists-tutorial"]
+
 Builds a list. All @racket[elem]s must have the same type.
 
 @examples[#:eval demo
@@ -658,6 +691,8 @@ Builds a list. All @racket[elem]s must have the same type.
 
 @defform[(vector elem ...)]{
 
+@tutorial["state-tutorial"]
+
 Builds a vector. All @racket[elem]s must have the same type.
 
 @examples[#:eval demo
@@ -668,6 +703,8 @@ Builds a vector. All @racket[elem]s must have the same type.
 
 
 @defform[(values elem ...)]{
+
+@tutorial["tuples-tutorial"]
 
 Combines multiple values into @deftech{tuple}, where a tuple
 containing one value is equivalent to the value. Match a @tech{tuple}
@@ -695,6 +732,8 @@ The type of each @racket[elem] is independent.
                           (id type ...)]
                 [list-variant empty
                               (cons first-id rest-id)])]{
+
+@tutorial["datatypes-tutorial"]
 
 Dispatches based on the variant of the result of @racket[val-expr].
 
@@ -759,6 +798,8 @@ by @racket[expr] and calls @racket[handle-expr].
 @defform[(test expr expr)]
 @defform[(test/exn expr string-expr)]
 )]{
+
+@tutorial["testing-tutorial"]
 
 The @racket[test] form checks whether the value of the first
 @racket[expr] matches the value of the second @racket[expr], and
@@ -1102,6 +1143,8 @@ Converts between a string and a list of characters.
 @; - - - - - - - - - - - - - - - - - - - - -
 @subsection{S-Expressions}
 
+@tutorial["s-exp-tutorial"]
+
 A @deftech{S-expression} typically represents program text. For example,
 placing a @litchar{'} in from of any @racketmodname[plait]
 expression (which is the same as wrapping it with @racket[quote])
@@ -1206,6 +1249,8 @@ A list produced by @racket[s-exp->list] always contains S-expression items.
 
 @defthing[s-exp-match? (S-Exp S-Exp -> Boolean)]{
 
+@tutorial["s-exp-match-tutorial"]
+
 Compares the first S-expression, a @deftech{pattern}, to the second
 S-expression, a @deftech{target}.
 
@@ -1237,7 +1282,7 @@ the @tech{pattern}:
  @item{@racket[`ANY] --- matches any S-expression}
 
  @item{@racket[`...] --- within a list S-expression, matches any
-       number of repetitions f the preceding S-expression within the
+       number of repetitions of the preceding S-expression within the
        list; only one @racket[`...] can appear as an immediate element
        of a pattern list, and @racket[`...] is not allowed within a
        pattern outside of a list or as the first element of a list}
@@ -1282,6 +1327,8 @@ Any other symbol in a @tech{pattern} matches only itself in the
 @; - - - - - - - - - - - - - - - - - - - - -
 @subsection{Vector}
 
+@tutorial["state-tutorial"]
+
 @deftogether[(
 @defthing[make-vector (Number 'a -> (Vectorof 'a))]
 @defthing[vector-ref ((Vectorof 'a) Number -> 'a)]
@@ -1311,6 +1358,8 @@ reports the number of slots in the vector.
 @; - - - - - - - - - - - - - - - - - - - - -
 @subsection{Boxes}
 
+@tutorial["state-tutorial"]
+
 @deftogether[(
 @defthing[box ('a -> (Boxof 'a))]
 @defthing[unbox ((Boxof 'a) -> 'a)]
@@ -1338,6 +1387,8 @@ slot, @racket[unbox] accesses the current value in a box's slot, and
 @; - - - - - - - - - - - - - - - - - - - - -
 @subsection{Tuples}
 
+@tutorial["tuples-tutorial"]
+
 @deftogether[(
 @defthing[pair ('a 'b -> ('a * 'b))]
 @defthing[fst (('a * 'b) -> 'a)]
@@ -1357,6 +1408,8 @@ p
 
 @; - - - - - - - - - - - - - - - - - - - - -
 @subsection{Optional Values}
+
+@tutorial["tuples-tutorial"]
 
 @deftogether[(
 @defthing[none (-> (Optionof 'a))]
