@@ -190,7 +190,7 @@
                 (and (list? v)
                      (map loop v))))
     (error 'read "input is not an s-expression: ~e" v))
-  v)
+  (s-exp v))
 
 (define (s-exp-match? pattern s)
   (local [;; main matching routine is called after checking
