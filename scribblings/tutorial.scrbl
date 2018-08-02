@@ -1,7 +1,9 @@
 #lang scribble/manual
 @(require (for-label (only-meta-in 0 plait))
+          racket/runtime-path
           scribble/examples
-          scribble/core)
+          scribble/core
+          scribble/html-properties)
 
 @(define plait-eval (make-base-eval))
 @examples[#:hidden #:eval plait-eval (require plait)]
@@ -13,7 +15,13 @@
 @(define (pink e)
    @elem[#:style (style #f (list (background-color-property "pink"))) e])
 
+@(define-runtime-path demo.rkt "demo.rkt")
+
 @title[#:style 'toc]{Tutorial}
+
+@margin-note{For a quick refresher of the tutorial content, try
+@elem[#:style (style #f (list (link-resource
+demo.rkt)))]{@filepath{demo.rkt}}.}
 
 @local-table-of-contents[]
 

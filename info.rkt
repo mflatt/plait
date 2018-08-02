@@ -8,6 +8,8 @@
                      "rackunit-lib"
                      ["scribble-lib" #:version "1.16"]))
 
+(define test-omit-paths '("scribblings/demo.rkt"))
+
 (define version "0.1")
 
-(define scribblings '(("plait.scrbl" (multi-page) (language))))
+(define scribblings '(("scribblings/plait.scrbl" (multi-page) (language))))
