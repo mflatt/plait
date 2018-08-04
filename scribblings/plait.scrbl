@@ -1847,13 +1847,25 @@ annotations can help focus the error message.
 
 @; ----------------------------------------
 
-@section["untyped"]{Untyped Mode}
+@section[#:tag "untyped-and-lazy"]{Untyped and Lazy Modes}
 
 Use @racket[#:untyped] immediately after @racket[@#,hash-lang[]
 @#,racketmodname[plait]] to disable type checking. The syntax of a
 @racketmodname[plait] module is the same with and without
 @racket[#:untyped], but types are ignored when @racket[#:untyped] is
-specified.
+specified. An untyped Plait module can interoperate with a typed Plait
+module, and dynamic checks are inserted at the boundary to protect
+typed functions from abuse by untyped code.
+
+Use @racket[#:lazy] immediately after @racket[@#,hash-lang[]
+@#,racketmodname[plait]] to switch evaluation to lazy mode. The syntax
+and type system are unchanged, but argument expressions for function
+calls are evaluated only when forced (by a test or by printing,
+ultimately). A lazy Plait module will not interoperate well with an
+eager module.
+
+The @racket[#:untyped] and @racket[#:lazy] modifiers can be combined,
+and the combination can be declared in either order.
 
 @; ----------------------------------------
 

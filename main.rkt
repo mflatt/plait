@@ -7,17 +7,21 @@
                   test/exn
                   print-only-errors
                   error)
+         (prefix-in lazy: lazy)
+         (prefix-in lazy: "private/lazy-datatype.rkt")
          racket/pretty
          racket/list
          racket/bool
          racket/local
          racket/shared
          racket/include
+         syntax/wrap-modbeg
          (only-in racket/contract/base contract-out)
          racket/trace
          "private/fixup-quote.rkt"
          "private/s-exp.rkt"
          "private/tuple.rkt"
+         "private/force.rkt"
          (for-syntax racket/base
                      racket/list
                      racket/syntax
@@ -53,8 +57,9 @@
                      [include: include]
                      [splice: splice]
                      [define-syntax: define-syntax]
-                     [define-syntax-rule: define-syntax-rule])
-         #%app #%datum #%top unquote unquote-splicing
+                     [define-syntax-rule: define-syntax-rule]
+                     [#%app: #%app])
+         #%datum #%top unquote unquote-splicing
          module submod
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
@@ -70,12 +75,26 @@
          (rename-out [test: test]
                      [test/exn: test/exn])
          print-only-errors
-         
-         cons list empty first rest empty? cons?
-         second third fourth list-ref build-list length
-         map reverse map2 append
-         filter foldl foldr
-         (rename-out [member: member])
+
+         (rename-out [cons: cons]
+                     [list: list]
+                     [first: first]
+                     [second: second]
+                     [third: third]
+                     [fourth: fourth]
+                     [list-ref: list-ref]
+                     [length: length]
+                     [rest: rest]
+                     [map: map]
+                     [map2: map2]
+                     [reverse: reverse]
+                     [append: append]
+                     [member: member]
+                     [foldl: foldl]
+                     [foldr: foldr]
+                     [filter: filter])
+         empty empty? cons?
+         build-list
 
          + - = > < <= >= / * min max 
          add1 sub1 zero? odd? even?
@@ -106,14 +125,19 @@
          ;; no type, so for use only in untyped:
          s-exp s-exp-content tuple tuple-content
          
-         box unbox set-box!
+         (rename-out [box: box]
+                     [unbox: unbox]
+                     [set-box!: set-box!])
 
-         make-vector vector-ref vector-set! vector-length vector
-         
-         (rename-out [values: values])
-         pair fst snd
+         (rename-out [vector: vector]
+                     [vector-set!: vector-set!])
+         make-vector vector-ref vector-length
 
-         identity
+         (rename-out [values: values]
+                     [pair: pair])
+         fst snd
+
+         (rename-out [identity: identity])
 
          make-parameter parameter-ref parameter-set!
 
@@ -133,15 +157,26 @@
                      [hashof: Hashof]
                      [void: Void])
 
-         Optionof none some some-v none? some?)
+         Optionof
+         (rename-out [none: none]
+                     [some: some]
+                     [some-v: some-v]
+                     [none?: none?]
+                     [some?: some?]))
 
 (begin-for-syntax
   (define untyped? #f)
-  (define lazy? #f))
+  (define lazy? #f)
+  (define saw-submodules (make-hasheq)))
 
 (define-type Optionof
   [none]
   [some (v (lambda (x) #t))])
+
+;; Lazy options don't interoperate at all with eager ones
+(lazy:define-type lazy-Optionof
+  [lazy-none]
+  [lazy-some (v (lambda (x) #t))])
 
 (define not-there (gensym))
 
@@ -184,6 +219,7 @@
 (define (list->s-exp s) (s-exp (map s-exp-content s)))
 
 (define (identity x) x)
+(lazy:define (lazy-identity x) x)
 
 (define (read:)
   (define v (read))
@@ -287,6 +323,7 @@
       (s-exp-match? pattern s))))
 
 (define (map2 f l1 l2) (map f l1 l2))
+(define (lazy:map2 f l1 l2) (lazy:map f l1 l2))
 
 (define-syntax (: stx)
   (raise-syntax-error
@@ -315,8 +352,58 @@
 (define-syntax parameterof: type)
 (define-syntax void: type)
 
-(define (member: a l)
+(define-syntax-rule (define-lazy-switch f: f lazy:f)
+  (...
+   (define-syntax (f: stx)
+     (syntax-case stx ()
+       [(_ arg ...)
+        (if lazy?
+            (syntax/loc stx (lazy:#%app lazy:f arg ...))
+            (syntax/loc stx (f arg ...)))]
+       [(_ . rest)
+        (syntax/loc stx (f . rest))]
+       [_ (datum->syntax #'here (if lazy? 'lazy:f 'f) stx)]))))
+(define-lazy-switch cons: cons lazy:cons)
+(define-lazy-switch list: list lazy:list)
+(define-lazy-switch first: first lazy:first)
+(define-lazy-switch second: second lazy:second)
+(define-lazy-switch third: third lazy:third)
+(define-lazy-switch fourth: fourth lazy:fourth)
+(define-lazy-switch list-ref: list-ref lazy:list-ref)
+(define-lazy-switch length: length lazy:length)
+(define-lazy-switch rest: rest lazy:rest)
+(define-lazy-switch map: map lazy:map)
+(define-lazy-switch map2: map2 lazy:map2)
+(define-lazy-switch reverse: reverse lazy:reverse)
+(define-lazy-switch append: append lazy:append)
+(define-lazy-switch filter: filter lazy:filter)
+(define-lazy-switch foldl: foldl lazy:foldl)
+(define-lazy-switch foldr: foldr lazy:foldr)
+
+(define-lazy-switch box: box lazy:box)
+(define-lazy-switch unbox: unbox lazy:unbox)
+(define-lazy-switch set-box!: set-box! lazy:set-box!)
+
+(define-lazy-switch vector: vector lazy:vector)
+(define-lazy-switch vector-set!: vector-set! lazy:vector-set!)
+
+(define-lazy-switch identity: identity lazy-identity)
+
+(define-lazy-switch values: values/tuple lazy-values)
+(define-lazy-switch pair: pair lazy-pair)
+
+(define-lazy-switch none: none lazy-none)
+(define-lazy-switch some: some lazy-some)
+(define-lazy-switch some-v: some-v lazy-some-v)
+(define-lazy-switch none?: none? lazy-none?)
+(define-lazy-switch some?: some? lazy-some?)
+
+(define (member? a l)
   (and (member a l) #t))
+(define (lazy:member? a l)
+  (and (lazy:member a l) #t))
+
+(define-lazy-switch member: member? lazy:member?)
 
 (define (to-string x) (format "~v" x))
 
@@ -551,27 +638,49 @@
 
 (define-syntax test:
   (check-top
-   (syntax-rules ()
-     [(_ e ...) (test e ...)])))
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ e ...) (if lazy?
+                      (syntax/loc stx (test (!! e) ...))
+                      (syntax/loc stx (test e ...)))]))))
 
 (define-syntax test/exn:
   (check-top
-   (syntax-rules ()
-     [(_ e ...) (test/exn e ...)])))
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ e ...) (if lazy?
+                      (syntax/loc stx (test/exn (!! e) ...))
+                      (syntax/loc stx (test/exn e ...)))]))))
 
 (define-syntax (module+: stx)
+  (define (module-begin-there s)
+    (datum->syntax stx (syntax-e s) s s))
   (syntax-case stx ()
     [(_ name e ...)
-     untyped?
-     (syntax/loc stx
-       (module+ name e ...))]
-    [(_ name e ...)
-     (syntax/loc stx
-       (module+ name
-         ;; to register implicitly imported types:
-         (require (only-in (submod ".." plait)))
-         e
-         ...))]))
+     (with-syntax ([(decl ...)
+                    (cond
+                      [(hash-ref saw-submodules (syntax-e #'name) #f)
+                       '()]
+                      [else
+                       (hash-set! saw-submodules (syntax-e #'name) #t)
+                       (cond
+                         [lazy?
+                          #'(#:lazy (is-submodule))]
+                         [else
+                          #'((is-submodule))])])])
+       (module-begin-there
+        (cond
+          [untyped?
+           (syntax/loc stx
+             (module+ name decl ... e ...))]
+          [else
+           (syntax/loc stx
+             (module+ name
+               decl ...
+               ;; to register implicitly imported types:
+               (begin (require (only-in (submod ".." plait))))
+               e
+               ...))])))]))
 
 (define-syntax include: 
   (check-top
@@ -686,42 +795,44 @@
 (define-syntax define:
   (check-top
    (lambda (stx)
-     (syntax-case stx (:)
-       [(_ id expr)
-        (identifier? #'id)
-        (begin
-          (check-defn-keyword #'id stx)
-          (syntax/loc stx
-            (define id expr)))]
-       [(_ id : type expr)
-        (identifier? #'id)
-        (begin
-          (check-defn-keyword #'id stx)
-          (syntax/loc stx
-            (define id expr)))]
-       [(_ (id arg ...) : type expr)
-        (identifier? #'id)
-        (begin
-          (check-defn-keyword #'id stx)
-          (with-syntax ([(arg ...)
-                         (map (parse-arg stx) (syntax->list #'(arg ...)))])
+     (with-syntax ([define (if lazy? #'lazy:define #'define)])
+       (syntax-case stx (:)
+         [(_ id expr)
+          (identifier? #'id)
+          (begin
+            (check-defn-keyword #'id stx)
             (syntax/loc stx
-              (define (id arg ...) (#%expression expr)))))]
-       [(_ (id arg ...) expr)
-        (identifier? #'id)
-        (begin
-          (check-defn-keyword #'id stx)
-          (with-syntax ([(arg ...)
-                         (map (parse-arg stx) (syntax->list #'(arg ...)))])
+              (define id expr)))]
+         [(_ id : type expr)
+          (identifier? #'id)
+          (begin
+            (check-defn-keyword #'id stx)
             (syntax/loc stx
-              (define (id arg ...) (#%expression expr)))))]))))
+              (define id expr)))]
+         [(_ (id arg ...) : type expr)
+          (identifier? #'id)
+          (begin
+            (check-defn-keyword #'id stx)
+            (with-syntax ([(arg ...)
+                           (map (parse-arg stx) (syntax->list #'(arg ...)))])
+              (syntax/loc stx
+                (define (id arg ...) (#%expression expr)))))]
+         [(_ (id arg ...) expr)
+          (identifier? #'id)
+          (begin
+            (check-defn-keyword #'id stx)
+            (with-syntax ([(arg ...)
+                           (map (parse-arg stx) (syntax->list #'(arg ...)))])
+              (syntax/loc stx
+                (define (id arg ...) (#%expression expr)))))])))))
 
-(define values: (lambda args
-                  (tuple (apply vector-immutable args))))
-
+(define values/tuple (lambda args (tuple (apply vector-immutable args))))
 (define (pair a b) (tuple (vector-immutable a b)))
 (define (fst v) (vector-ref (tuple-content v) 0))
 (define (snd v) (vector-ref (tuple-content v) 1))
+
+(define lazy-values (lazy:lambda args (tuple (apply vector-immutable args))))
+(lazy:define (lazy-pair a b) (tuple (lazy:vector-immutable a b)))
 
 (define-syntax define-values:
   (check-top
@@ -749,17 +860,25 @@
 (define-syntax lambda:
   (check-top
    (lambda (stx)
-     (syntax-case stx (:)
-       [(_ (arg ...) : type expr)
-        (with-syntax ([(arg ...)
-                       (map (parse-arg stx) (syntax->list #'(arg ...)))])
-          (syntax/loc stx
-            (lambda (arg ...) (#%expression expr))))]
-       [(_ (arg ...) expr)
-        (with-syntax ([(arg ...)
-                       (map (parse-arg stx) (syntax->list #'(arg ...)))])
-          (syntax/loc stx
-            (lambda (arg ...) (#%expression expr))))]))))
+     (with-syntax ([lambda (if lazy? #'lazy:lambda #'lambda)])
+       (syntax-case stx (:)
+         [(_ (arg ...) : type expr)
+          (with-syntax ([(arg ...)
+                         (map (parse-arg stx) (syntax->list #'(arg ...)))])
+            (syntax/loc stx
+              (lambda (arg ...) (#%expression expr))))]
+         [(_ (arg ...) expr)
+          (with-syntax ([(arg ...)
+                         (map (parse-arg stx) (syntax->list #'(arg ...)))])
+            (syntax/loc stx
+              (lambda (arg ...) (#%expression expr))))])))))
+
+(define-syntax (#%app: stx)
+  (syntax-case stx ()
+    [(_ e ...)
+     (if lazy?
+         (syntax/loc stx (lazy:#%app e ...))
+         (syntax/loc stx (#%app e ...)))]))
 
 (begin-for-syntax
  ;; Used to declare a variant name so that `shared' can create instances
@@ -774,7 +893,7 @@
                                           [_ stx]))])
        (syntax-case stx (set!)
          [(set! _ rhs) (syntax/loc stx (set! id rhs))]
-         [(_ arg ...) (syntax/loc stx (id arg ...))]
+         [(_ arg ...) (syntax/loc stx (#%app: id arg ...))]
          [_ #'id])))
    #:property prop:struct-info
    (lambda (c)
@@ -845,8 +964,9 @@
                                  "duplicate definition for identifier"
                                  stx
                                  dup)))
-         (let ([s #'(define-type id
-                      [$variant (field (lambda (x) #t)) ...] ...)])
+         (let ([s (with-syntax ([define-type (if lazy? #'lazy:define-type #'define-type)])
+                    #'(define-type id
+                        [$variant (field (lambda (x) #t)) ...] ...))])
            #`(begin
                #,(datum->syntax stx (syntax-e s) stx stx)
                (define-syntax variant (constructor-syntax
@@ -1000,11 +1120,15 @@
                            stx
                            id)))
                       (syntax->list #'(id ...)))
-            (with-syntax ([$variant (let ([c (syntax-local-value #'variant (lambda () #f))])
-                                      (if (constructor-syntax? c)
-                                          (let ([id (constructor-syntax-id c)])
-                                            (datum->syntax id (syntax-e id) #'variant))
-                                          #'variant))])
+            (with-syntax ([$variant (syntax-case #'variant (none: some:)
+                                      [none: (if lazy? #'lazy-none #'none)]
+                                      [some: (if lazy? #'lazy-some #'some)]
+                                      [else
+                                       (let ([c (syntax-local-value #'variant (lambda () #f))])
+                                         (if (constructor-syntax? c)
+                                             (let ([id (constructor-syntax-id c)])
+                                               (datum->syntax id (syntax-e id) #'variant))
+                                             #'variant))])])
               (syntax/loc clause
                 [$variant (id ...) (#%expression ans)]))]
            [[else ans]
@@ -1100,9 +1224,13 @@
        [(_ type expr [(variant id ...) ans] ...)
         (with-syntax ([type (if (identifier? #'type)
                                 #'type
-                                (syntax-case #'type ()
+                                (syntax-case #'type (Optionof)
+                                  [(Optionof arg ...)
+                                   lazy?
+                                   #'lazy-Optionof]
                                   [(id arg ...) #'id]))]
-                      [(clause ...) (convert-clauses stx)])
+                      [(clause ...) (convert-clauses stx)]
+                      [type-case (if lazy? #'lazy:type-case #'type-case)])
           (syntax/loc stx
             (type-case type expr clause ...)))]
        [(_ type expr [(variant id ...) ans] ... [else else-ans])
@@ -1110,7 +1238,8 @@
                                 #'type
                                 (syntax-case #'type ()
                                   [(id arg ...) #'id]))]
-                      [(clause ...) (convert-clauses stx)])
+                      [(clause ...) (convert-clauses stx)]
+                      [type-case (if lazy? #'lazy:type-case #'type-case)])
           (syntax/loc stx
             (type-case type expr clause ...)))]
        [_
@@ -1118,10 +1247,10 @@
 
 (define-syntax (listof-type-case stx)
   (define (clause-kind clause)
-    (syntax-case clause (else empty cons)
+    (syntax-case clause (else empty cons:)
       [[else . _] 'else]
       [[empty . _] 'empty]
-      [[(cons id1 id2) . _]
+      [[(cons: id1 id2) . _]
        (let ([check-id (lambda (id)
                          (unless (identifier? id)
                            (raise-syntax-error #f
@@ -1169,15 +1298,15 @@
               (equal? '(cons empty) done)
               (equal? '(empty cons) done))
           #`(let ([v expr])
-              (cond
+              (#,(if lazy? #'lazy:cond #'cond)
                 #,@(for/list ([clause (in-list clauses)])
-                     (syntax-case clause (else empty cons)
+                     (syntax-case clause (else empty cons:)
                        [[else ans] clause]
-                       [[empty ans] #'[(empty? v) ans]]
-                       [[(cons id1 id2) ans]
-                        #'[(pair? v) (let ([id1 (car v)]
-                                           [id2 (cdr v)])
-                                       ans)]]))))]
+                       [[empty ans] #'[(#%app: empty? v) ans]]
+                       [[(cons: id1 id2) ans]
+                        #'[(#%app: pair? v) (let ([id1 (first: v)]
+                                                  [id2 (rest: v)])
+                                              ans)]]))))]
          [else
           (raise-syntax-error #f
                               (format "missing `~a` clause"
@@ -1195,7 +1324,8 @@
                                   (identifier? (last ques))
                                   (free-identifier=? (last ques) #'else))
                              null
-                             #'([else (cond-error)])))])
+                             #'([else (cond-error)])))]
+                      [cond (if lazy? #'lazy:cond #'cond)])
           (syntax/loc stx
             (cond [ques (#%expression ans)] ... catch ...)))]
        [(_ thing ...)
@@ -1277,8 +1407,9 @@
    (lambda (stx)
      (syntax-case stx ()
        [(_ test then else)
-        (syntax/loc stx
-          (if test then else))]
+        (with-syntax ([if (if lazy? #'lazy:if #'if)])
+          (syntax/loc stx
+            (if test then else)))]
        [(_ test then)
         (raise-syntax-error #f
                             "missing else-expression"
@@ -1289,14 +1420,16 @@
    (lambda (stx)
      (syntax-case stx ()
        [(_ tst expr ...)
-        (syntax/loc stx (when tst expr ...))]))))
+        (with-syntax ([when (if lazy? #'lazy:when #'when)])
+          (syntax/loc stx (when tst expr ...)))]))))
 
 (define-syntax unless:
   (check-top
    (lambda (stx)
      (syntax-case stx ()
        [(_ tst expr ...)
-        (syntax/loc stx (unless tst expr ...))]))))
+        (with-syntax ([unless (if lazy? #'lazy:unless #'unless)])
+          (syntax/loc stx (unless tst expr ...)))]))))
 
 (define-for-syntax (check-quoted stx on-escaped)
   (let loop ([s stx] [qq 0])
@@ -1810,16 +1943,16 @@
                            tl))]
          [is-value? (lambda (expr)
                       (let loop ([expr expr])
-                        (syntax-case expr (lambda: list values: cons empty hash: quote: none some)
+                        (syntax-case expr (lambda: list: values: cons: empty hash: quote: none: some:)
                           [(lambda: . _) #t]
                           [(values: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
-                          [(list a ...)
+                          [(list: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
                           [(hash: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
                           [empty #t]
-                          [(cons a b)
+                          [(cons: a b)
                            (and (loop #'a) (loop #'b))]
                           [(id a ...)
                            (and (identifier? #'id)
@@ -1827,8 +1960,8 @@
                                          (free-identifier=? #'id (car v)))
                                        variants))
                            (andmap loop (syntax->list #'(a ...)))]
-                          [(none) #t]
-                          [(some e) (loop #'e)]
+                          [(none:) #t]
+                          [(some: e) (loop #'e)]
                           [(quote: a) #t]
                           [_ (or (identifier? expr)
                                  (string? (syntax-e expr))
@@ -2027,7 +2160,7 @@
           (map
            (lambda (tl)
              (let typecheck ([expr tl] [env env] [tvars-box (box base-tvars)])
-               (syntax-case (rename expr) (: require: define-type: define: define-values: 
+               (syntax-case (rename expr) (: begin require: define-type: define: define-values: 
                                              define-type-alias define-syntax: define-syntax-rule:
                                              lambda: begin: local: letrec: let: let*: 
                                              shared: parameterize:
@@ -2036,7 +2169,7 @@
                                              type-case: quote: quasiquote: time: listof:
                                              else empty
                                              has-type
-                                             list vector values: try
+                                             list: vector: values: try
                                              module+: module)
                  [(module+: name e ...)
                   (let*-values ([(datatypes dt-len opaques o-len aliases a-len
@@ -2087,6 +2220,9 @@
                   (void)]
                  [(define-syntax-rule: . _)
                   ;; can ignore
+                  (void)]
+                 [(begin . _)
+                  ;; can ignore macro-introduced
                   (void)]
                  [(require: . _)
                   ;; handled in require env
@@ -2308,8 +2444,8 @@
                             [res-type (gen-tvar expr)])
                        (unify! #'val type (typecheck #'val env tvars-box))
                        (for-each (lambda (clause)
-                                   (syntax-case clause (cons)
-                                     [[(cons id1 id2) ans]
+                                   (syntax-case clause (cons:)
+                                     [[(cons: id1 id2) ans]
                                       (unify!
                                        expr
                                        res-type
@@ -2418,23 +2554,23 @@
                   (let ([t (typecheck #'expr1 env tvars-box)])
                     (unify! #'expr2 t (typecheck #'expr2 env tvars-box))
                     t)]
-                 [(list arg ...)
+                 [(list: arg ...)
                   (let ([t (gen-tvar expr)])
                     (for-each (lambda (arg)
                                 (unify! arg t (typecheck arg env tvars-box)))
                               (syntax->list #'(arg ...)))
                     (make-listof expr t))]
-                 [list
+                 [list:
                   (raise-syntax-error #f
                                       "list constructor must be applied directly to arguments"
                                       expr)]
-                 [(vector arg ...)
+                 [(vector: arg ...)
                   (let ([t (gen-tvar expr)])
                     (for-each (lambda (arg)
                                 (unify! arg t (typecheck arg env tvars-box)))
                               (syntax->list #'(arg ...)))
                     (make-vectorof expr t))]
-                 [vector
+                 [vector:
                   (raise-syntax-error #f
                                       "vector constructor must be applied directly to arguments"
                                       expr)]
@@ -2704,98 +2840,98 @@
                                                                     a))
                                                              a))))
                      (cons #'empty (POLY a (make-listof #f a)))
-                     (cons #'cons (POLY a (make-arrow #f
-                                                      (list a (make-listof #f a))
-                                                      (make-listof #f a))))
+                     (cons #'cons: (POLY a (make-arrow #f
+                                                       (list a (make-listof #f a))
+                                                       (make-listof #f a))))
                      (cons #'cons? (POLY a (make-arrow #f
                                                        (list (make-listof #f a))
                                                        B)))
                      (cons #'empty? (POLY a (make-arrow #f
                                                         (list (make-listof #f a))
                                                         B)))
-                     (cons #'first (POLY a (make-arrow #f
-                                                       (list (make-listof #f a))
-                                                       a)))
-                     (cons #'rest (POLY a (make-arrow #f
-                                                      (list (make-listof #f a))
-                                                      (make-listof #f a))))
-                     (cons #'second (POLY a
-                                       (make-arrow #f
-                                                   (list (make-listof #f a))
-                                                   a)))
-                     (cons #'third (POLY a (make-arrow #f
-                                                       (list (make-listof #f a))
-                                                       a)))
-                     (cons #'fourth (POLY a (make-arrow #f
+                     (cons #'first: (POLY a (make-arrow #f
                                                         (list (make-listof #f a))
                                                         a)))
-                     (cons #'list-ref (POLY a (make-arrow #f
-                                                          (list (make-listof #f a)
-                                                                N)
-                                                          a)))
+                     (cons #'rest: (POLY a (make-arrow #f
+                                                       (list (make-listof #f a))
+                                                       (make-listof #f a))))
+                     (cons #'second: (POLY a
+                                           (make-arrow #f
+                                                       (list (make-listof #f a))
+                                                       a)))
+                     (cons #'third: (POLY a (make-arrow #f
+                                                        (list (make-listof #f a))
+                                                        a)))
+                     (cons #'fourth: (POLY a (make-arrow #f
+                                                         (list (make-listof #f a))
+                                                         a)))
+                     (cons #'list-ref: (POLY a (make-arrow #f
+                                                           (list (make-listof #f a)
+                                                                 N)
+                                                           a)))
                      (cons #'build-list (POLY a (make-arrow #f
                                                             (list N
                                                                   (make-arrow #f
                                                                               (list N)
                                                                               a))
                                                             (make-listof #f a))))
-                     (cons #'length (POLY a (make-arrow #f
-                                                        (list (make-listof #f a))
-                                                        N)))
-                     (cons #'map (POLY a
-                                       (POLY b
-                                             (make-arrow #f
-                                                         (list (make-arrow #f (list a) b)
-                                                               (make-listof #f a))
-                                                         (make-listof #f b)))))
-                     (cons #'map2 (POLY a
+                     (cons #'length: (POLY a (make-arrow #f
+                                                         (list (make-listof #f a))
+                                                         N)))
+                     (cons #'map: (POLY a
                                         (POLY b
-                                              (POLY c
-                                                    (make-arrow #f
-                                                                (list (make-arrow #f (list a b) c)
-                                                                      (make-listof #f a)
-                                                                      (make-listof #f b))
-                                                                (make-listof #f c))))))
+                                              (make-arrow #f
+                                                          (list (make-arrow #f (list a) b)
+                                                                (make-listof #f a))
+                                                          (make-listof #f b)))))
+                     (cons #'map2: (POLY a
+                                         (POLY b
+                                               (POLY c
+                                                     (make-arrow #f
+                                                                 (list (make-arrow #f (list a b) c)
+                                                                       (make-listof #f a)
+                                                                       (make-listof #f b))
+                                                                 (make-listof #f c))))))
                      (cons #'member: (POLY a (make-arrow #f
                                                          (list a
                                                                (make-listof #f a))
                                                          B)))
-                     (cons #'filter (POLY a (make-arrow #f
-                                                        (list (make-arrow #f 
-                                                                          (list a) 
-                                                                          B)
-                                                              (make-listof #f a))
-                                                        (make-listof #f a))))
-                     (cons #'foldl (POLY a
-                                         (POLY b
-                                               (make-arrow #f
-                                                           (list (make-arrow #f (list a b) b)
-                                                                 b
-                                                                 (make-listof #f a))
-                                                           b))))
-                     (cons #'foldr (POLY a
-                                         (POLY b
-                                               (make-arrow #f
-                                                           (list (make-arrow #f (list a b) b)
-                                                                 b
-                                                                 (make-listof #f a))
-                                                           b))))
-                     (cons #'reverse (POLY a (make-arrow #f
-                                                         (list (make-listof #f a))
+                     (cons #'filter: (POLY a (make-arrow #f
+                                                         (list (make-arrow #f 
+                                                                           (list a) 
+                                                                           B)
+                                                               (make-listof #f a))
                                                          (make-listof #f a))))
-                     (cons #'append (POLY a (make-arrow #f
-                                                        (list (make-listof #f a)
-                                                              (make-listof #f a))
-                                                        (make-listof #f a))))
-                     (cons #'box (POLY a (make-arrow #f
-                                                     (list a)
-                                                     (make-boxof #f a))))
-                     (cons #'unbox (POLY a (make-arrow #f
-                                                       (list (make-boxof #f a))
-                                                       a)))
-                     (cons #'set-box! (POLY a (make-arrow #f
-                                                          (list (make-boxof #f a) a)
-                                                          (make-vd #f))))
+                     (cons #'foldl: (POLY a
+                                          (POLY b
+                                                (make-arrow #f
+                                                            (list (make-arrow #f (list a b) b)
+                                                                  b
+                                                                  (make-listof #f a))
+                                                            b))))
+                     (cons #'foldr: (POLY a
+                                          (POLY b
+                                                (make-arrow #f
+                                                            (list (make-arrow #f (list a b) b)
+                                                                  b
+                                                                  (make-listof #f a))
+                                                            b))))
+                     (cons #'reverse: (POLY a (make-arrow #f
+                                                          (list (make-listof #f a))
+                                                          (make-listof #f a))))
+                     (cons #'append: (POLY a (make-arrow #f
+                                                         (list (make-listof #f a)
+                                                               (make-listof #f a))
+                                                         (make-listof #f a))))
+                     (cons #'box: (POLY a (make-arrow #f
+                                                      (list a)
+                                                      (make-boxof #f a))))
+                     (cons #'unbox: (POLY a (make-arrow #f
+                                                        (list (make-boxof #f a))
+                                                        a)))
+                     (cons #'set-box!: (POLY a (make-arrow #f
+                                                           (list (make-boxof #f a) a)
+                                                           (make-vd #f))))
                      (cons #'make-vector (POLY a (make-arrow #f
                                                              (list N a)
                                                              (make-vectorof #f a))))
@@ -2803,11 +2939,11 @@
                                                             (list (make-vectorof #f a)
                                                                   N)
                                                             a)))
-                     (cons #'vector-set! (POLY a (make-arrow #f
-                                                             (list (make-vectorof #f a)
-                                                                   N
-                                                                   a)
-                                                             (make-vd #f))))
+                     (cons #'vector-set!: (POLY a (make-arrow #f
+                                                              (list (make-vectorof #f a)
+                                                                    N
+                                                                    a)
+                                                              (make-vd #f))))
                      (cons #'vector-length (POLY a (make-arrow #f
                                                                (list (make-vectorof #f a))
                                                                N)))
@@ -2833,10 +2969,10 @@
                      (cons #'symbol->string (make-arrow #f 
                                                         (list SYM)
                                                         STR))
-                     (cons #'identity (POLY a
-                                         (make-arrow #f
-                                                     (list a)
-                                                     a)))
+                     (cons #'identity: (POLY a
+                                             (make-arrow #f
+                                                         (list a)
+                                                         a)))
                      (cons #'to-string (POLY a
                                              (make-arrow #f
                                                          (list a)
@@ -2860,29 +2996,29 @@
                      (cons #'list->string (make-arrow #f
                                                       (list (make-listof #f CHAR))
                                                       STR))
-                     (cons #'none (POLY a (make-arrow #f 
+                     (cons #'none: (POLY a (make-arrow #f 
                                                       (list) 
                                                       (make-datatype #f #'Optionof (list a)))))
-                     (cons #'some (POLY a (make-arrow #f 
-                                                      (list a) 
-                                                      (make-datatype #f #'Optionof (list a)))))
-                     (cons #'none? (POLY a (make-arrow #f 
-                                                      (list
-                                                       (make-datatype #f #'Optionof (list a)))
-                                                      B)))
-                     (cons #'some? (POLY a (make-arrow #f 
-                                                       (list
-                                                        (make-datatype #f #'Optionof (list a)))
-                                                       B)))
-                     (cons #'some-v (POLY a (make-arrow #f 
+                     (cons #'some: (POLY a (make-arrow #f 
+                                                       (list a) 
+                                                       (make-datatype #f #'Optionof (list a)))))
+                     (cons #'none?: (POLY a (make-arrow #f 
                                                         (list
                                                          (make-datatype #f #'Optionof (list a)))
-                                                        a)))
-                     (cons #'pair (POLY a 
-                                        (POLY b
-                                              (make-arrow #f
-                                                          (list a b)
-                                                          (make-tupleof #f (list a b))))))
+                                                        B)))
+                     (cons #'some?: (POLY a (make-arrow #f 
+                                                        (list
+                                                         (make-datatype #f #'Optionof (list a)))
+                                                        B)))
+                     (cons #'some-v: (POLY a (make-arrow #f 
+                                                         (list
+                                                          (make-datatype #f #'Optionof (list a)))
+                                                         a)))
+                     (cons #'pair: (POLY a 
+                                         (POLY b
+                                               (make-arrow #f
+                                                           (list a b)
+                                                           (make-tupleof #f (list a b))))))
                      (cons #'fst (POLY a 
                                        (POLY b
                                              (make-arrow #f
@@ -2895,9 +3031,9 @@
                                                          b))))
                      ))]
         [init-variants (list
-                        (cons #'none (list))
-                        (cons #'some (list (let ([a (gen-tvar #f)])
-                                             (make-poly #f a a)))))])
+                        (cons #'none: (list))
+                        (cons #'some: (list (let ([a (gen-tvar #f)])
+                                              (make-poly #f a a)))))])
     (typecheck-defns (expand-includes tl)
                      (append import-datatypes datatypes)
                      (append import-opaques opaques)
@@ -3137,9 +3273,17 @@
 
 ;; ----------------------------------------
 
+(define-syntax is-submodule #f)
+
 (begin-for-syntax
+  (define is-submodule? #f)
+  
   (define (filter-keywords! forms)
-    (syntax-case forms ()
+    (syntax-case forms (is-submodule)
+      [((is-submodule) . forms)
+       (begin
+         (set! is-submodule? #t)
+         (filter-keywords! #'forms))]
       [(#:untyped . forms)
        (begin
          (set! untyped? #t)
@@ -3159,12 +3303,26 @@
   (syntax-case stx ()
     [(_ form ...)
      (with-syntax ([(form ...) (filter-keywords! #'(form ...))])
-       (with-syntax ([end (if untyped?
-                              #`(provide #,(datum->syntax stx `(,#'all-defined-out)))
-                              #'(typecheck form ...))])
-         #`(#%module-begin
+       (with-syntax ([end (cond
+                            [is-submodule?
+                             #'(begin)]
+                            [untyped?
+                             #`(provide #,(datum->syntax stx `(,#'all-defined-out)))]
+                            [else
+                             #'(typecheck form ...)])])
+         #`(printing-module-begin
             form ...
             end)))]))
+
+(define-syntax printing-module-begin
+  (make-wrapping-module-begin #'print-result))
+
+(define-syntax-rule (print-result e)
+  (call-with-values (lambda () (!! e)) print-values))
+
+(define (print-values . vs)
+  (for-each (current-print) vs)
+  (apply values vs))
 
 ;; ----------------------------------------
 
