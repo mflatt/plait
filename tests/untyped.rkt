@@ -1,4 +1,4 @@
-#lang plait/untyped
+#lang plait #:untyped
 
 ;; Used typed syntax, but without any type checking
 

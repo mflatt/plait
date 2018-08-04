@@ -1847,6 +1847,14 @@ annotations can help focus the error message.
 
 @; ----------------------------------------
 
-@include-section["untyped.scrbl"]
+@section["untyped"]{Untyped Mode}
+
+Use @racket[#:untyped] immediately after @racket[@#,hash-lang[]
+@#,racketmodname[plait]] to disable type checking. The syntax of a
+@racketmodname[plait] module is the same with and without
+@racket[#:untyped], but types are ignored when @racket[#:untyped] is
+specified.
+
+@; ----------------------------------------
 
 @close-eval[demo]

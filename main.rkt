@@ -21,6 +21,7 @@
          (for-syntax racket/base
                      racket/list
                      racket/syntax
+                     racket/require-transform
                      "private/types.rkt"
                      racket/struct-info
                      "private/collapse.rkt"))
@@ -133,6 +134,10 @@
                      [void: Void])
 
          Optionof none some some-v none? some?)
+
+(begin-for-syntax
+  (define untyped? #f)
+  (define lazy? #f))
 
 (define-type Optionof
   [none]
@@ -398,6 +403,9 @@
    (lambda (stx)
      (syntax-case stx ()
        [(_ clause ...)
+        untyped?
+        (syntax/loc stx (require clause ...))]
+       [(_ clause ...)
         (with-syntax ([(new-clause ...)
                        (map (lambda (clause)
                               (let loop ([clause clause])
@@ -507,11 +515,39 @@
           #'(require new-clause ...))]))))
 
 (define-syntax typed-in
-  (lambda (stx)
-    (raise-syntax-error #f "allowed only in `require'" stx)))
+  (make-require-transformer
+   (lambda (stx)
+     (unless untyped?
+       (raise-syntax-error #f "allowed only in `require'" stx))
+     (syntax-case stx (:)
+       [(_ lib [id : type] ...)
+        (begin
+          (let ([lib #'lib]
+                [ids (syntax->list #'(id ...))])
+            (unless (module-path? (syntax->datum lib))
+              (raise-syntax-error #f "bad module path" stx lib))
+            (for ([id (in-list ids)])
+              (unless (identifier? id)
+                (raise-syntax-error #f "expected an identifier" stx id))))
+          (with-syntax ([lib (fixup-quote #'lib #'quote:)])
+            (expand-import #'(only-in lib id ...))))]))))
+
 (define-syntax opaque-type-in
-  (lambda (stx)
-    (raise-syntax-error #f "allowed only in `require'" stx)))
+  (make-require-transformer
+   (lambda (stx)
+     (unless untyped?
+       (raise-syntax-error #f "allowed only in `require'" stx))
+     (syntax-case stx ()
+       [(_ lib [id pred-id] ...)
+        (begin
+          (let ([lib (fixup-quote #'lib #'quote:)]
+                [ids (syntax->list #'(id ... pred-id ...))])
+            (unless (module-path? (syntax->datum lib))
+              (raise-syntax-error #f "bad module path" stx lib))
+            (for ([id (in-list ids)])
+              (unless (identifier? id)
+                (raise-syntax-error #f "expected an identifier" stx id))))
+          (expand-import #'(only-in lib pred-id ... [pred-id id] ...)))]))))
 
 (define-syntax test:
   (check-top
@@ -523,12 +559,19 @@
    (syntax-rules ()
      [(_ e ...) (test/exn e ...)])))
 
-(define-syntax-rule (module+: name e ...)
-  (module+ name
-    ;; to register implicitly imported types:
-    (require (only-in (submod ".." plait)))
-    e
-    ...))
+(define-syntax (module+: stx)
+  (syntax-case stx ()
+    [(_ name e ...)
+     untyped?
+     (syntax/loc stx
+       (module+ name e ...))]
+    [(_ name e ...)
+     (syntax/loc stx
+       (module+ name
+         ;; to register implicitly imported types:
+         (require (only-in (submod ".." plait)))
+         e
+         ...))]))
 
 (define-syntax include: 
   (check-top
@@ -559,6 +602,9 @@
    (lambda (stx)
      (syntax-case stx ()
        [(_ id rhs)
+        untyped?
+        (syntax/loc stx (define-syntax id rhs))]
+       [(_ id rhs)
         (identifier? #'id)
         (syntax-case* #'rhs (syntax-rules lambda) free-transformer-identifier=?
           [(syntax-rules . _)
@@ -584,6 +630,9 @@
   (check-top
    (lambda (stx)
      (syntax-case stx ()
+       [(_ pat tmpl)
+        untyped?
+        (syntax/loc stx (define-syntax-rule pat tmpl))]
        [(_ (id . rest) tmpl)
         (identifier? #'id)
         #`(define-syntax: id (syntax-rules () [(id . rest) tmpl]))]))))
@@ -3031,6 +3080,9 @@
 (define-syntax (top-interaction stx)
   (syntax-case stx ()
     [(_ . body)
+     untyped?
+     #'body]
+    [(_ . body)
      (let ([expanded-body (syntax-case #'body (define-type:)
                             [(define-type: . _)
                              ;; Can't `local-expand' without also evaluating
@@ -3085,6 +3137,19 @@
 
 ;; ----------------------------------------
 
+(begin-for-syntax
+  (define (filter-keywords! forms)
+    (syntax-case forms ()
+      [(#:untyped . forms)
+       (begin
+         (set! untyped? #t)
+         (filter-keywords! #'forms))]
+      [(#:lazy . forms)
+       (begin
+         (set! lazy? #t)
+         (filter-keywords! #'forms))]
+      [_ forms])))
+
 (define-syntax (module-begin stx)
   (unless (eq? 'module-begin (syntax-local-context))
     (raise-syntax-error
@@ -3093,9 +3158,13 @@
      stx))
   (syntax-case stx ()
     [(_ form ...)
-     #`(#%module-begin
-        form ...
-        (typecheck form ...))]))
+     (with-syntax ([(form ...) (filter-keywords! #'(form ...))])
+       (with-syntax ([end (if untyped?
+                              #`(provide #,(datum->syntax stx `(,#'all-defined-out)))
+                              #'(typecheck form ...))])
+         #`(#%module-begin
+            form ...
+            end)))]))
 
 ;; ----------------------------------------
 

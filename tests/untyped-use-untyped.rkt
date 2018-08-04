@@ -1,4 +1,4 @@
-#lang plait/untyped
+#lang plait #:untyped
 (require "untyped.rkt")
 
 (define-syntax-rule (test a b)
