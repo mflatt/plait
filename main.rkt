@@ -3200,20 +3200,26 @@
   (apply values redirects))
 
 (define-for-syntax orig-body #f)
-(define-for-syntax (set-orig-body! v)
-  (set! orig-body v))
+(define-for-syntax orig-is-lazy? #f)
+(define-for-syntax orig-is-untyped? #f)
+(define-for-syntax (set-orig-body! v is-lazy? is-untyped?)
+  (set! orig-body v)
+  (set! orig-is-lazy? is-lazy?)
+  (set! orig-is-untyped? is-untyped?))
 
 (define-syntax (typecheck stx)
   (syntax-case stx ()
-    [(_ . body)
+    [(_ is-lazy? is-untyped? . body)
      #'(begin
-         (begin-for-syntax (set-orig-body! (quote-syntax body)))
+         (begin-for-syntax (set-orig-body! (quote-syntax body) is-lazy? is-untyped?))
          ;; Typechecking happens after everything else is expanded:
          (typecheck-and-provide . body))]))
 
 ;; ----------------------------------------
 
 (define-syntax (top-interaction stx)
+  (set! lazy? orig-is-lazy?)
+  (set! untyped? orig-is-untyped?)
   (syntax-case stx ()
     [(_ . body)
      untyped?
@@ -3307,9 +3313,11 @@
                             [is-submodule?
                              #'(begin)]
                             [untyped?
-                             #`(provide #,(datum->syntax stx `(,#'all-defined-out)))]
+                             #`(begin
+                                 (typecheck #,lazy? #t) ; sets untyped mode and laziness
+                                 (provide #,(datum->syntax stx `(,#'all-defined-out))))]
                             [else
-                             #'(typecheck form ...)])])
+                             #`(typecheck #,lazy? #,untyped? form ...)])])
          #`(printing-module-begin
             form ...
             end)))]))
