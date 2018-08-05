@@ -1,8 +1,8 @@
 #lang lazy
 (require (only-in racket/base [begin r:begin])
-         (for-syntax scheme/list
+         (for-syntax racket/list
                      syntax/parse
-                     (only-in scheme/function curry)
+                     (only-in racket/function curry)
                      racket/base))
 
 (provide define-type type-case)

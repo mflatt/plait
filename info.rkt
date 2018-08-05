@@ -3,6 +3,7 @@
 (define collection "plait")
 
 (define deps '("base"
+               "lazy"
                "plai"))
 (define build-deps '("racket-doc"
                      "rackunit-lib"
