@@ -4,7 +4,8 @@
          syntax/srcloc
          (for-template racket/contract/base
                        racket/base
-                       "s-exp.rkt"))
+                       "s-exp.rkt"
+                       "tuple.rkt"))
 
 (provide gen-tvar make-bool make-num make-sym make-str make-chr make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
@@ -74,9 +75,9 @@
      [(hashof? type) #`(hash/c #,(loop (hashof-key type) tvar-names contra? #t)
                                #,(loop (hashof-val type) tvar-names contra? #t))]
      [(tupleof? type) #`(struct/c tuple
-                                  [vec (immutable-vector/c
-                                        #,@(map (λ (x) (loop x tvar-names inside-mutable?))
-                                                (tupleof-args type)))])]
+                                  (vector-immutable/c
+                                   #,@(map (λ (x) (loop x tvar-names inside-mutable?))
+                                           (tupleof-args type))))]
      [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names contra? #t))]
      [(poly? type) (if enforce-poly?
                        (let* ([name (gensym 'a)]
