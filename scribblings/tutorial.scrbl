@@ -938,6 +938,22 @@ the function's definitions.
 
 @interaction[#:hidden (untrace got-milk?)]
 
+As you're devloping a program, sometimes it's useful to run a partial
+program where you haven't yet decided on part of the implementation.
+The @racket[....] expression (with four dots) can be used in place of
+any expression of any type. A program using @racket[....] can compile
+and run, but the @racket[....] reports an error if it is reached
+during evaluation.
+
+@interaction[
+(define (got-milk? [_items : (Listof String)])
+  (type-case (Listof String) _items
+    [empty #f]
+    [(cons _item _rst-items) ....]))
+(got-milk? '())
+(eval:error (got-milk? '("cheese")))
+]
+
 @; ----------------------------------------
 @section[#:tag "lambda-tutorial"]{Anonymous Functions}
 

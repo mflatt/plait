@@ -315,6 +315,17 @@ an @tech{S-expression} (type
 An expression also can be a bound identifier (in
 which case its type comes from its binding).
 
+@defidform[....]{
+
+The @racket[....] form is intended as a placeholder for a expression.
+It can be used in any expression position and can have any type, but
+@racket[....] reports an error when evaluated.
+
+@examples[#:eval demo
+(if #f .... 'ok)
+(eval:error (if #t .... 'no))
+]}
+
 @defform[#:literals (:)
          (has-type expr : type)]{
 

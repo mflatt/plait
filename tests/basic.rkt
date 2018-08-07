@@ -405,3 +405,12 @@
 (define-values ([aoeuc : Number] [aoeud : String]) (values 4 "plum"))
 (test 4 aoeuc)
 (test "plum" aoeud)
+
+(test (cond
+        [(< 2 1) ....]
+        [else 'ok])
+      'ok)
+(test (cond
+        [(< 2 1) (.... 'oops)]
+        [else 'ok])
+      'ok)

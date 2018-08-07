@@ -65,6 +65,7 @@
                      [top-interaction #%top-interaction])
          else typed-in rename-in opaque-type-in
          has-type
+         ....
 
          (for-syntax (all-from-out racket/base))
 
@@ -1513,6 +1514,15 @@
    (syntax-rules (:)
      [(_ expr : type) expr])))
 
+(define-syntax ....
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(dots arg ...)
+        (syntax/loc stx (#%app: (#%expression dots) arg ...))]
+       [_ (syntax/loc stx
+            (error "reached a `....` placeholder"))]))))
+
 (define-syntax time:
   (check-top
    (syntax-rules ()
@@ -2168,7 +2178,7 @@
                                              or: and: set!: trace:
                                              type-case: quote: quasiquote: time: listof:
                                              else empty
-                                             has-type
+                                             has-type ....
                                              list: vector: values: try
                                              module+: module)
                  [(module+: name e ...)
@@ -2550,6 +2560,8 @@
                         [ty (parse-mono-type #'type tvars-box)])
                     (unify! #'expr t ty)
                     ty)]
+                 [....
+                  (gen-tvar expr)]
                  [(try expr1 (lambda: () expr2))
                   (let ([t (typecheck #'expr1 env tvars-box)])
                     (unify! #'expr2 t (typecheck #'expr2 env tvars-box))
