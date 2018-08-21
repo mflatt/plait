@@ -414,3 +414,5 @@
         [(< 2 1) (.... 'oops)]
         [else 'ok])
       'ok)
+
+(define tuple-test (values 1 2))

@@ -76,7 +76,7 @@
                                #,(loop (hashof-val type) tvar-names contra? #t))]
      [(tupleof? type) #`(struct/c tuple
                                   (vector-immutable/c
-                                   #,@(map (λ (x) (loop x tvar-names inside-mutable?))
+                                   #,@(map (λ (x) (loop x tvar-names contra? inside-mutable?))
                                            (tupleof-args type))))]
      [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names contra? #t))]
      [(poly? type) (if enforce-poly?
