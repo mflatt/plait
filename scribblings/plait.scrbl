@@ -1441,9 +1441,9 @@ Defined as
 @subsection{Hash Tables}
 
 @deftogether[(
-@defthing[make-hash ((Listof ('a * 'b)) -> (hashof 'a 'b))]
-@defthing[hash ((Listof ('a * 'b)) -> (hashof 'a 'b))]
-@defthing[hash-ref ((hashof 'a 'b) 'a -> (Optionof 'b))]
+@defthing[make-hash ((Listof ('a * 'b)) -> (Hashof 'a 'b))]
+@defthing[hash ((Listof ('a * 'b)) -> (Hashof 'a 'b))]
+@defthing[hash-ref ((Hashof 'a 'b) 'a -> (Optionof 'b))]
 )]{
 
 The @racket[make-hash] function creates a mutable hash table that is
@@ -1467,8 +1467,8 @@ with @racket[some]. Otherwise, @racket[hash-ref] returns
 ]}
 
 @deftogether[(
-@defthing[hash-set! ((hashof 'a 'b) 'a 'b -> Void)]
-@defthing[hash-remove! ((hashof 'a 'b) 'a -> Void)]
+@defthing[hash-set! ((Hashof 'a 'b) 'a 'b -> Void)]
+@defthing[hash-remove! ((Hashof 'a 'b) 'a -> Void)]
 )]{
 
 Changes the mapping of a mutable hash table. The @racket[hash-set!]
@@ -1488,8 +1488,8 @@ Providing an immutable hash table triggers an exception.
 ]}
 
 @deftogether[(
-@defthing[hash-set ((hashof 'a 'b) 'a 'b -> (hashof 'a 'b))]
-@defthing[hash-remove ((hashof 'a 'b) 'a -> (hashof 'a 'b))]
+@defthing[hash-set ((Hashof 'a 'b) 'a 'b -> (Hashof 'a 'b))]
+@defthing[hash-remove ((Hashof 'a 'b) 'a -> (Hashof 'a 'b))]
 )]{
 
 Produces an immutable hash table that is like a given one, but with a
@@ -1508,7 +1508,7 @@ in the result hash table.
 (hash-ref i-ht 3)
 ]}
 
-@defthing[hash-keys ((hashof 'a 'b) -> (Listof 'a))]{
+@defthing[hash-keys ((Hashof 'a 'b) -> (Listof 'a))]{
 
 Returns the keys mapped by a hash table, which can be mutable or
 immutable.
@@ -1651,7 +1651,7 @@ Type for the empty @tech{tuple}.}
 @defform[(Vectorof type)]{Type for vectors of elements, where @racket[type] is the type of one element.}
 @defform[(Parameterof type)]{Type for parameters, where @racket[type] is the type of the parameter's value.}
 
-@defform[(hashof type type)]{
+@defform[(Hashof type type)]{
 
 Type for hash tables, where the first @racket[type] corresponds to
 keys and the second @racket[type] correspond to values.}
