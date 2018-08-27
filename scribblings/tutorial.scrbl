@@ -56,7 +56,7 @@ the line.
 @; ----------------------------------------
 @section[#:tag "data-tutorial"]{Simple Data}
 
-Plait supoprts various kinds of numbers, all with type @racket[Number]:
+Plait supports various kinds of numbers, all with type @racket[Number]:
 
 @interaction[1 0.5 1/2 1+2i]
 
