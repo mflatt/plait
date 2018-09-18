@@ -1613,7 +1613,12 @@
     [(define: id expr)
      (list #'id)]
     [(define-values: (id ...) rhs)
-     (syntax->list #'(id ...))]
+     (map (lambda (id)
+            (if (identifier? id)
+                id
+                (syntax-case id ()
+                  [[id : type] #'id])))
+          (syntax->list #'(id ...)))]
     [_ null]))
 
 ;; Since we manage macro expansion during type checking, we're also
@@ -3271,7 +3276,9 @@
          (set! tl-variants vars)
          (set! tl-submods subs)
          (with-syntax ([ty ((type->datum (make-hasheq)) (car tys))]
-                       [body expanded-body])
+                       [body (if lazy?
+                                 #`(!! #,expanded-body)
+                                 expanded-body)])
            (if (void? (car tys))
                #'body
                #'(begin

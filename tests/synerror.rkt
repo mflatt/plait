@@ -237,3 +237,11 @@
       [else 0]))
  #rx"typecheck failed: .Listof Number. vs[.] Number")
 
+(syn-test
+ '(module m plait
+    (define (f x)
+      (let ([y x])
+        y))
+    (+ (f #t) 1))
+ #rx"typecheck failed: Number vs[.] Boolean")
+
