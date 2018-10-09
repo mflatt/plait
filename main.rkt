@@ -3348,8 +3348,7 @@
   (call-with-values (lambda () (!! e)) print-values))
 
 (define (print-values . vs)
-  (for-each (current-print) vs)
-  (apply values vs))
+  (for-each (current-print) vs))
 
 ;; ----------------------------------------
 
