@@ -1,14 +1,19 @@
 #lang racket/base
-(require (prefix-in lazy: lazy)
+(require racket/vector
+         (prefix-in lazy: lazy)
          "tuple.rkt")
 
 (provide !!)
 
 (define (!! v)
-  ;; Force more values, including transparent structs
+  ;; Force more values, including transparent structs.
+  ;; Mutable values --- boxes and vectors --- are mutated
+  ;; to replace original values with forced values.
+  (define saw (make-hasheq))
   (let loop ([v v])
     (let ([v (lazy:! v)])
       (cond
+        [(hash-ref saw v #f) v]
         [(pair? v)
          (let ([a (loop (car v))]
                [d (loop (cdr v))])
@@ -17,19 +22,14 @@
                v
                (cons a d)))]
         [(box? v)
-         (let ([c (loop (unbox v))])
-           (if (eq? c (unbox v))
-               v
-               (box c)))]
+         (hash-set! saw v v)
+         (set-box! v (loop (unbox v)))
+         v]
         [(vector? v)
-         (define v2
-           (for/vector #:length (vector-length v) ([e (in-vector v)])
-             (loop e)))
-         (if (for/and ([e (in-vector v)]
-                       [e2 (in-vector v2)])
-               (eq? e e2))
-             v
-             v2)]
+         (hash-set! saw v v)
+         (for ([i (in-range (vector-length v))])
+           (vector-set! v i (loop (vector-ref v i))))
+         v]
         [(tuple? v)
          (define c (loop (tuple-content v)))
          (if (eq? v (tuple-content v))
@@ -51,17 +51,14 @@
                (define vec
                  (for/vector #:length count ([i (in-range count)])
                    (access v i)))
-               (define vec2 (loop vec))
+               (define vec2 (loop (vector-copy vec)))
                (cond
-                 [(eq? vec vec2) v]
+                 [(for/and ([e (in-vector vec)]
+                            [e2 (in-vector vec2)])
+                    (eq? e e2))
+                  v]
                  [else
                   (apply (struct-type-make-constructor st) (vector->list vec2))])]
               [else v])]
            [else v])]
         [else v]))))
-
-             
-             
-               
-       
-       
