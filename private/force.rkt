@@ -26,10 +26,20 @@
          (set-box! v (loop (unbox v)))
          v]
         [(vector? v)
-         (hash-set! saw v v)
-         (for ([i (in-range (vector-length v))])
-           (vector-set! v i (loop (vector-ref v i))))
-         v]
+         (cond
+           [(immutable? v)
+            (define new-v
+              (for/vector #:length (vector-length v) ([i (in-range (vector-length v))])
+                (loop (vector-ref v i))))
+            (if (for/and ([i (in-range (vector-length v))])
+                  (eq? (vector-ref v i) (vector-ref new-v i)))
+                v
+                new-v)]
+           [else
+            (hash-set! saw v v)
+            (for ([i (in-range (vector-length v))])
+              (vector-set! v i (loop (vector-ref v i))))
+            v])]
         [(tuple? v)
          (define c (loop (tuple-content v)))
          (if (eq? v (tuple-content v))
