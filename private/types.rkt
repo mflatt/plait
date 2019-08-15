@@ -397,7 +397,7 @@
    [(non-poly-defn? t)
     (poly-instance (non-poly-defn-base t))]
    [(tvar? t)
-    (let ([new-t (simplify! t)])
+    (let ([t (simplify! t)])
       (if (poly? t)
           (poly-instance t)
           t))]
