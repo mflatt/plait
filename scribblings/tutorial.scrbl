@@ -28,10 +28,12 @@ demo.rkt)))]{@filepath{demo.rkt}}.}
 @; ----------------------------------------
 @section[#:tag "getting-started"]{Getting Started}
 
-To get started with Pait,
+To get started with Plait,
 @link["https://download.racket-lang.org/"]{download Racket}, install
-it, and start @onscreen{DrRacket}. In the top part of the DrRacket
-window, type
+it, start @onscreen{DrRacket}, and install the @tt{plait} package using DrRacket's
+@onscreen{Install Package...} menu item in the @onscreen{File} menu.
+
+Then, in the top part of the DrRacket window, type
 
 @racketmod[plait]
 
@@ -1023,7 +1025,7 @@ shorthand:
 ]
 
 Another interesting property of @racket[lambda] functions is that,
-just lke any local function, the body of a @racket[lambda] can see any
+just like any local function, the body of a @racket[lambda] can see any
 surrounding variable binding. For example, the @racket[lambda] body in
 the following @racket[add-to-each] function can see the @racket[_m]
 that is passed to @racket[add-to-each]:
@@ -1071,7 +1073,7 @@ that the solution is a list of @tt{Object}s, because anything can be
 coerced to and from the type @tt{Object}. That is, we would be able to
 mix a symbol as @tt{Object} with two numbers as @tt{Object}s.
 
-Plai doesn't have an @tt{Object} type, but it does have an
+Plait doesn't have an @tt{Object} type, but it does have an
 @racket[S-Exp] type, which is similar. Even better, the @racket[S-Exp]
 type works with a convenient @litchar{'}-like shortcut. The
 @racket[S-Exp] shortcut is @litchar{`} (usually pronounced
