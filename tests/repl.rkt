@@ -24,6 +24,10 @@
 (tl "- Number\n1\n" '1)
 (tl "" '(define x 5))
 (tl "- Number\n5\n" 'x)
+(tl "" '(define x 6))
+(tl "- Number\n6\n" 'x)
+
+(te #rx"Number vs[.] String" '(define x "hello"))
 
 (tl "" '(define b (box (list))))
 (tl "- (Boxof (Listof '_a))\n'#&()\n" 'b)
@@ -35,9 +39,9 @@
 (te #rx"duplicate definition for identifier" '(define-type (M 'a)
                                                 [M (v : 'a)]))
 
-(tl "" '(define x (box empty)))
-(tl "" '(define y (box empty)))
-(te (regexp-quote "(Listof (Boxof (Listof '_a))) vs. (Boxof (Listof '_b))") '(cons x y))
+(tl "" '(define xb (box empty)))
+(tl "" '(define yb (box empty)))
+(te (regexp-quote "(Listof (Boxof (Listof '_a))) vs. (Boxof (Listof '_b))") '(cons xb yb))
 
 ;; Scope of type variables:
 (tl "" '(define f (lambda ([x : 'a] [y : 'b]) (has-type x : 'b))))
@@ -78,3 +82,9 @@
 
 
 (tl "" (void))
+
+;; Cannot redefine when polymorphic type
+(tl "" '(define (idt x) x))
+(tl "- ('a -> 'a)\n#<procedure:idt>\n" 'idt)
+(te (regexp-quote "('a -> 'a) vs. ('_b -> '_b)")
+    '(define (idt x) x))

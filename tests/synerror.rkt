@@ -245,3 +245,46 @@
     (+ (f #t) 1))
  #rx"typecheck failed: Number vs[.] Boolean")
 
+
+(syn-test
+ '(module m plait
+    (x :))
+ #rx"declaration: expected a single type")
+
+(syn-test
+ '(module m plait
+    (5 : Number))
+ #rx"declaration: expected an identifier")
+
+(syn-test
+ '(module m plait
+    (x : Number))
+ #rx"declaration: identifier not defined here")
+
+(syn-test
+ '(module m plait
+    (x : Number)
+    (define x "Hello"))
+ #rx"typecheck failed: Number vs[.] String")
+
+(syn-test
+ '(module m plait
+    (define x "Hello")
+    (x : Number))
+ #rx"typecheck failed: Number vs[.] String")
+
+(syn-test
+ '(module m plait
+    (define x "Hello")
+    (x : Number))
+ #rx"typecheck failed: Number vs[.] String")
+
+(syn-test
+ '(module m plait
+    (lambda ([z : 'a])
+      (local [(x : 'a)
+              (y : 'a)
+              (define x 10)
+              (define y "apple")]
+        (+ x (string-length y)))))
+ #rx"typecheck failed: Number vs[.] String")

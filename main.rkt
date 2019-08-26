@@ -791,7 +791,7 @@
      (unless (memq (syntax-local-context) '(module top-level))
        (raise-syntax-error #f "allowed only as a top-level form" stx))
      (syntax-case stx ()
-       [(_ e ...) #'(begin e ...)]))))
+       [(_ e ...) #'(begin (drop-type-decl e) ...)]))))
 
 (define-syntax define:
   (check-top
@@ -1032,25 +1032,21 @@
   (check-top
    (lambda (stx)
      (syntax-case stx ()
-       [(_ ((def . _d) ...) e)
-        (andmap (lambda (def)
-                  (syntax-case def (define: define-values:)
-                    [define: #t]
-                    [define-values: #t]
-                    [_ #f]))
-                (syntax->list #'(def ...)))
-        (syntax/loc stx
-          (local ((def . _d) ...) (#%expression e)))]
-       [(_ (thing ...) e)
-        (for-each (lambda (thing)
-                    (syntax-case thing (define: define-values:)
-                      [(define: . _) 'ok]
-                      [(define-values: . _) 'ok]
-                      [else (raise-syntax-error
-                             #f
-                             "expected a function, constant, or tuple definition"
-                             thing)]))
-                  (syntax->list #'(thing ...)))]))))
+       [(_ (defn ...) e)
+        (with-syntax ([(defn ...)
+                       (for/list ([defn (in-list (syntax->list #'(defn ...)))]
+                                  #:unless (syntax-case defn (:)
+                                             [(_ : . _) #t]
+                                             [_ #f]))
+                         (syntax-case defn (define: define-values:)
+                           [(define: . _) defn]
+                           [(define-values: . _) defn]
+                           [else (raise-syntax-error
+                                  #f
+                                  "expected a function, constant, or tuple definition or a type declaration"
+                                  defn)]))])
+          (syntax/loc stx
+            (local (defn ...) (#%expression e))))]))))
 
 (define-syntax parameterize:
   (check-top
@@ -1657,7 +1653,7 @@
                 (syntax->list #'(clause ...)))))]
     [_ expr]))
 
-(define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? 
+(define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? top?
                                     poly-context orig-let-polys submods base-tvars)
   ;; The `base-tvars` is a mapping from type names to type variables
   ;; for type variables written in the source. Since we have to infer
@@ -2172,6 +2168,30 @@
                                          (syntax->list #'((type ...) ...))))))]
                         [else null]))
                     tl))]
+         [ext-def-env
+          (if (not top?)
+              def-env
+              ;; Add any identifiers that have just a type declaration:
+              (for/fold ([def-env def-env]) ([stx (in-list tl)])
+                (syntax-case stx (:)
+                  [(id : type)
+                   (and (identifier? #'id)
+                        (not (lookup #'id def-env #:default #f))
+                        (not (lookup #'id init-env #:default #f)))
+                   (cons (cons #'id (parse-type/accum #'type (box base-tvars)))
+                         def-env)]
+                  [_ def-env])))]
+         [def-env (if (not top?)
+                      ext-def-env
+                      ;; If any name is already defined in `init-env`, keep
+                      ;; old type
+                      (for/fold ([def-env null]) ([p (in-list ext-def-env)])
+                        (cond
+                          [(lookup (car p) init-env #:default #f)
+                           => (lambda (t)
+                                (unify-defn! (car p) (cdr p) (poly-instance t))
+                                (cons (cons (car p) t) def-env))]
+                          [else (cons p def-env)])))]
          [env (append def-env
                       req-env
                       init-env)]
@@ -2219,6 +2239,7 @@
                                                   env
                                                   variants
                                                   #f
+                                                  #f ; not top
                                                   poly-context
                                                   let-polys
                                                   prev-submods
@@ -2263,12 +2284,29 @@
                   ;; check that `t' makes sense
                   ((parse-param-type null base-tvars) #'t)
                   (void)]
+                 [(id : type)
+                  (let ([id #'id])
+                    (unless (identifier? id)
+                      (raise-syntax-error 'declaration "expected an identifier before `:`" id))
+                    (unless (or top? (lookup id def-env #:default #f))
+                      (raise-syntax-error 'declaration "identifier not defined here" id))
+                    (unify! expr
+                            (poly-instance (lookup id env))
+                            (parse-type/accum #'type (box (unbox tvars-box)))))]
+                 [(id : . _)
+                  (if (identifier? #'id)
+                      (raise-syntax-error 'declaration "expected a single type after `:`" expr)
+                      (raise-syntax-error 'declaration "expected an identifier before `:`" #'id))]
                  [(define: (id arg ...) . rest)
-                  (typecheck #'(define: id (lambda: (arg ...) . rest))
+                  (typecheck (with-syntax ([proc (syntax/loc expr (lambda: (arg ...) . rest))])
+                               (syntax/loc expr (define: id proc)))
                              env
                              tvars-box)]
                  [(define: id : type expr)
                   (let ([dt (lookup #'id env)])
+                    ;; Note: if we're at the top level and `dt` is a polymorphic type
+                    ;; from a previous interaction, we won't be able to redefine, because
+                    ;; `unify!` cannot unify polymorphic types
                     (unify-defn! #'expr dt
                                  (typecheck #'expr env (box (get-defn-tvars dt)))))]
                  [(define: id expr)
@@ -2339,6 +2377,7 @@
                                                  env
                                                  variants
                                                  #f
+                                                 #f ; not top
                                                  poly-context
                                                  let-polys
                                                  submods
@@ -2359,6 +2398,7 @@
                                                  env
                                                  variants
                                                  #f
+                                                 #f ; not top
                                                  poly-context
                                                  let-polys submods
                                                  (unbox tvars-box))])
@@ -3064,6 +3104,7 @@
                      (append import-env init-env) 
                      (append import-variants init-variants)
                      #f
+                     #f ; not top
                      null
                      #f
                      (hasheq)
@@ -3252,14 +3293,14 @@
                             [(define-type: . _)
                              ;; Can't `local-expand' without also evaluating
                              ;; due to introduced identifiers interleaved
-                             ;; in definitions;the only point of local expansion 
+                             ;; in definitions; the only point of local expansion 
                              ;; is to check syntax, so just call the transformer
                              ;; directly:
                              (begin
                                (expand-define-type #'body)
                                #'body)]
                             [_
-                             (local-expand #'body 'top-level null)])])
+                             (local-expand #'(drop-type-decl body) 'top-level null)])])
        (unless tl-env
          (let-values ([(ts e d o a vars macros tl-types subs) 
                        (do-original-typecheck (syntax->list (if orig-body
@@ -3273,7 +3314,7 @@
            (set! tl-submods subs)))
        (let-values ([(tys e2 d2 o2 a2 vars macros tl-types subs) 
                      (typecheck-defns (expand-includes (list #'body))
-                                      tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) 
+                                      tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) #t
                                       null #f tl-submods null)])
          (set! tl-datatypes d2)
          (set! tl-opaques o2)
@@ -3344,8 +3385,13 @@
                             [else
                              #`(typecheck #,lazy? #,untyped? form ...)])])
          #`(printing-module-begin
-            form ...
+            (drop-type-decl form) ...
             end)))]))
+
+(define-syntax drop-type-decl
+  (syntax-rules (:)
+    [(_ (_ : . _)) (void)]
+    [(_ other) other]))
 
 (define-syntax printing-module-begin
   (make-wrapping-module-begin #'print-result))

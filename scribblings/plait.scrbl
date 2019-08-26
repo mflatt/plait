@@ -16,6 +16,7 @@
 @(define-r r:lambda r:syntax-rules)
 
 @(define demo (make-base-eval #:lang 'plait))
+@(define demo2 (make-base-eval #:lang 'plait))
 
 @(begin
   (define-syntax-rule (define-racket-shared racket-shared)
@@ -44,14 +45,26 @@ The Plait language syntactically resembles the
 
 @; --------------------------------------------------
 
-@section{Definitions}
+@section[#:tag "Definitions"]{Definitions}
 
 The body of a @schememodname[plait] module is a sequence of
-definitions and expressions, and the module implicitly exports all
+definitions, expressions and type declarations. The module implicitly exports all
 top-level definitions. When a @racketmodname[plait] module is
 imported into a module that does not use @racketmodname[plait],
 the imports have contracts (matching reflecting the exported bindings'
 types).
+
+@defform[#:link-target? #f
+         #:id [: #':]
+         #:literals (:)
+         (id : type)]{
+
+Declares that @racket[id] has type @racket[type]. This type
+declaration and the definition of @racket[id] must be within the same
+definition sequence, either at the top of a module or together in 
+a set of @racket[local] definitions.
+
+@history[#:added "1.1"]}
 
 @defform*/subs[#:literals (:)
                [(define id expr)
@@ -110,7 +123,7 @@ Defines each @racket[id/type] (with an optional type declaration) to
 be the values within the @tech{tuple} produced by @racket[expr], which
 must have as many values as declared @racket[id/type]s.
 
-@examples[#:eval demo
+@examples[#:eval demo2
 (define t (values 1 'one "One"))
 (define-values (a b c) t)
 a
@@ -161,12 +174,12 @@ expression also defines:
   (circle [radius : Number])
   (rectangle [width : Number]
              [height : Number]))
-(define c (circle 10))
-c
-(circle? c)
-(circle-radius c)
-(define r (rectangle 2 3))
-(+ (rectangle-width r) (rectangle-height r))
+(define cr (circle 10))
+cr
+(circle? cr)
+(circle-radius cr)
+(define rc (rectangle 2 3))
+(+ (rectangle-width rc) (rectangle-height rc))
 ]}
 
 @defform/subs[#:literals (quote)
@@ -574,7 +587,7 @@ returning @racket[(void)]. A @racket[when] form evaluates its
 
 
 @deftogether[(
-@defform[(local [definition ...] expr)]
+@defform[(local [definition-or-type-declaration ...] expr)]
 @defform[(letrec ([id rhs-expr] ...) expr)]
 @defform[(let ([id rhs-expr] ...) expr)]
 @defform[(let* ([id rhs-expr] ...) expr)]
@@ -583,7 +596,8 @@ returning @racket[(void)]. A @racket[when] form evaluates its
 @tutorial["definitions-tutorial"]
 
 Local binding forms. The @racket[local] form accommodates multiple
-definitions that visible only among the definitions and the body
+definitions and type declarations (using @racket[:])
+that are visible only among the definitions and the body
 @racket[expr]. The @racket[letrec], @racket[let], and @racket[let*]
 forms bind each @racket[id] to the value of the corresponding
 @racket[rhs-expr] (where the @racket[rhs-expr]s are evaluated in
@@ -595,7 +609,9 @@ visible only to later @racket[rhs-expr]s as well as in the body
 @racket[expr].
 
 @examples[#:eval demo
-(local [(define (add-x y) (+ x y))
+(local [(add-x : (Number -> Number))
+        (x : Number)
+        (define (add-x y) (+ x y))
         (define x 2)]
   (add-x 3))
 (eval:error add-x)
@@ -763,7 +779,7 @@ declared for @racket[variant-id] in the definition of
 @racket[tyid/abs] must have a clause in the @racket[type-case] form
 or an @racket[else] clause must be present.
 
-@examples[#:eval demo
+@examples[#:eval demo2
 (define-type Shape
   (circle [radius : Number])
   (rectangle [width : Number]
@@ -1387,12 +1403,12 @@ slot, @racket[unbox] accesses the current value in a box's slot, and
 @racket[set-box!] changes the value.
 
 @examples[#:eval demo
-(define b (box "apple"))
-(define b2 b)
-(unbox b)
-(set-box! b "banana")
-(unbox b)
-(unbox b2)
+(define bx (box "apple"))
+(define bx2 bx)
+(unbox bx)
+(set-box! bx "banana")
+(unbox bx)
+(unbox bx2)
 ]}
 
 @; - - - - - - - - - - - - - - - - - - - - -
@@ -1681,7 +1697,7 @@ one]
 In the following example, the type checker determines that @racket['b]
 stands for the argument type of a polymorphic function:
 
-@examples[#:eval demo #:label #f
+@examples[#:eval demo2 #:label #f
 (define (f [x : 'b]) x)
 ]
 
@@ -1763,7 +1779,8 @@ variables within the expressions:
 
 Syntactic literals are for use in declarations such as @racket[define]
 and @racket[require]; see @racket[define] and @racket[require] for
-more information.}
+more information. A @racket[:] can also be used for a type declaration
+within a definition sequence; see @secref["Definitions"].}
 
 @; ----------------------------------------
 
@@ -1849,6 +1866,15 @@ a few small exceptions:
    system does not prevent ``reference to identifier before
    definition'' errors.}
 
+ @item{Interactive evaluation (e.g., in DrRacket's interactions
+   window) can redefine identifiers that were previously defined
+   interactively or that were defined in a module as mutable.
+   Redefinition cannot change the identifier's type. Due to a
+   limitation of the type checker, identifiers of polymorphic type
+   cannot be redefined or redeclared. Type declarations are allowed in
+   interactive evaluation, but a declared type is never treated as a
+   polymorphic type.}
+
 ]
 
 When typechecking fails, the error messages reports and highlights (in
@@ -1881,3 +1907,4 @@ and the combination can be declared in either order.
 @; ----------------------------------------
 
 @close-eval[demo]
+@close-eval[demo2]

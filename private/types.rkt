@@ -582,8 +582,8 @@
 
 (define (mismatch-explanation a b function-call?)
   (cond
-   [(or (and (arrow? a) (not (arrow? b)))
-        (and (arrow? b) (not (arrow? a))))
+   [(or (and (poly-arrow? a) (not (poly-arrow? b)))
+        (and (poly-arrow? b) (not (poly-arrow? a))))
     (if function-call?
         (string-append "call of a non-function\n"
                        "  possible reason: extra parentheses create a function call")
@@ -601,16 +601,18 @@
             (length (arrow-args b)))]
    [else #f]))
 
-(define (lookup id env)
+(define (lookup id env #:default [default 'fail])
   (let loop ([env env] [symbolic? #f])
     (cond
      [(null? env)
       (if symbolic?
           #f
-          (raise-syntax-error 
-           #f
-           "free variable while typechecking"
-           id))]
+          (if (eq? default 'fail)
+              (raise-syntax-error 
+               #f
+               "free variable while typechecking"
+               id)
+              default))]
      [(free-identifier=? id (caar env))
       (if (eq? (syntax-e id) (syntax-e (caar env)))
           (cdar env)
@@ -801,7 +803,7 @@
                       (non-poly! b (tvar-non-poly a)))
                     (set-tvar-rep! a b)
                     (add-srcs! b a))))]
-         [(and function-call? (arrow? b) (not (arrow? a)))
+         [(and function-call? (poly-arrow? b) (not (poly-arrow? a)))
           (unify! expr b a #:function-call? #t)]
          [(bool? a)
           (unless (bool? b)
@@ -865,5 +867,13 @@
                                           (datatype-id b)))
             (raise-typecheck-error expr a b))
           (for-each (lambda (aa ba) (sub-unify! a b expr aa ba)) (datatype-args a) (datatype-args b))]
+         [(poly? a)
+          ;; This should only happen when we try to redefine a polymorphic function
+          (raise-typecheck-error expr a b)]
          [else
           (raise-typecheck-error expr a b (format "unrecognized type ~s" a))]))))
+
+(define (poly-arrow? a)
+  (or (arrow? a)
+      (and (poly? a)
+           (poly-arrow? (poly-type a)))))

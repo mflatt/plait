@@ -499,7 +499,7 @@ area---which is known as the @defterm{definitions area}, naturally.
 
 Put these two definitions in the definitions area:
 
-@interaction[#:hidden (define (is-even? x) #true)]
+@interaction[#:hidden (define (is-even? [x : Number]) #true)]
 
 @interaction[
 #:no-prompt
@@ -540,6 +540,20 @@ after the defined identifier:
 (define groceries : (Listof String) '("milk" "cookies"))
 ]
 
+Alternatively, you can declare an idenitifier's type separate from its
+definition by using @racket[:].
+
+@interaction[
+#:no-prompt
+(groceries : (Listof String))
+(define groceries '("milk" "cookies"))
+]
+
+The declaration can appear before or after the definition, as long as
+it is in the same layer of declarations as the definition. You can
+even have multiple type definitions for the same identifier, and the
+type checker will ensure that they're all consistent.
+
 For a function, attach a type to an argument by writing square
 brackets around the argument name, @racket[:], and a type. Write the
 function's result type with @racket[:] and the type after the
@@ -548,6 +562,15 @@ parentheses that group the function name with its arguments.
 @interaction[
 #:no-prompt
 (define (starts-milk? [_items : (Listof String)]) : Boolean
+  (equal? (first _items) "milk"))
+]
+
+Or, of course, declare the type separately:
+
+@interaction[
+#:no-prompt
+(starts-milk? : ((Listof String) -> Boolean))
+(define (starts-milk? _items)
   (equal? (first _items) "milk"))
 ]
 
@@ -1039,6 +1062,16 @@ that is passed to @racket[add-to-each]:
 (add-to-each 70 '(1 2 3))
 ]
 
+You can declare types for @racket[lambda] arguments and results similar
+to declaring them in a function-definition shorthand:
+
+@interaction[
+#:no-prompt
+(lambda ([_s : String]) : Boolean
+  (> (string-length _s) 10))
+]
+
+
 @; ----------------------------------------
 @section[#:tag "s-exp-tutorial"]{S-Expressions}
 
@@ -1464,14 +1497,14 @@ each of the vector's slots. The @racket[vector] function creates a vector,
 
 @interaction[
 (define counters (make-vector 2 0))
-(define (fresh-number-at! i)
+(define (fresh-number-at-index! i)
   (begin
     (vector-set! counters i (add1 (vector-ref counters i)))
     (vector-ref counters i)))
-(fresh-number-at! 0)
-(fresh-number-at! 0)
-(fresh-number-at! 1)
-(fresh-number-at! 0)
+(fresh-number-at-index! 0)
+(fresh-number-at-index! 0)
+(fresh-number-at-index! 1)
+(fresh-number-at-index! 0)
 ]
 
 
