@@ -27,6 +27,7 @@
 (module+ other
   (+ (unbox (box 10)) (unbox (box-number 10))))
 
+(box-number : (Number -> (Boxof Number)))
 (define box-number
   (lambda (n)
     (if (= n 0)
@@ -64,14 +65,16 @@
 (test #t (s-exp-list? (list->s-exp (list))))
 (test #t (s-exp-list? (list->s-exp (list (number->s-exp 2)))))
 
-(test 5 (local [(define x 10)]
+(test 5 (local [(x : Number)
+                (define x 10)]
           (begin
             (set! x 5)
             x)))
 
 (test 5 (call/cc (lambda (x) 5)))
 (test 5 (let/cc x 5))
-(test 7 (local [(define y (lambda (q) (+ q 3)))]
+(test 7 (local [(define y (lambda (q) (+ q 3)))
+                (y : (Number -> Number))]
           (if (= 0 (call/cc (lambda (k)
                               (begin
                                 (set! y k)
@@ -85,6 +88,17 @@
                        0)))
               (y 2)
               7)))
+
+(test 15 (local [(x : 'a)
+                 (y : 'a)
+                 (define x 10)
+                 (define y "apple")]
+           (+ x (string-length y))))
+
+(test 15 (local [(ident : ('a -> 'a))
+                 (define (ident x)
+                   x)]
+           (+ (ident 10) (string-length (ident "hello")))))
 
 (local [(define x (lambda ((x : String)) x))]
   (set! x (lambda (y) (string-append y y))))

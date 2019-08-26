@@ -1032,25 +1032,21 @@
   (check-top
    (lambda (stx)
      (syntax-case stx ()
-       [(_ ((def . _d) ...) e)
-        (andmap (lambda (def)
-                  (syntax-case def (define: define-values:)
-                    [define: #t]
-                    [define-values: #t]
-                    [_ #f]))
-                (syntax->list #'(def ...)))
-        (syntax/loc stx
-          (local ((def . _d) ...) (#%expression e)))]
-       [(_ (thing ...) e)
-        (for-each (lambda (thing)
-                    (syntax-case thing (define: define-values:)
-                      [(define: . _) 'ok]
-                      [(define-values: . _) 'ok]
-                      [else (raise-syntax-error
-                             #f
-                             "expected a function, constant, or tuple definition"
-                             thing)]))
-                  (syntax->list #'(thing ...)))]))))
+       [(_ (defn ...) e)
+        (with-syntax ([(defn ...)
+                       (for/list ([defn (in-list (syntax->list #'(defn ...)))]
+                                  #:unless (syntax-case defn (:)
+                                             [(_ : . _) #t]
+                                             [_ #f]))
+                         (syntax-case defn (define: define-values:)
+                           [(define: . _) defn]
+                           [(define-values: . _) defn]
+                           [else (raise-syntax-error
+                                  #f
+                                  "expected a function, constant, or tuple definition or a type declaration"
+                                  defn)]))])
+          (syntax/loc stx
+            (local (defn ...) (#%expression e))))]))))
 
 (define-syntax parameterize:
   (check-top
@@ -2263,6 +2259,20 @@
                   ;; check that `t' makes sense
                   ((parse-param-type null base-tvars) #'t)
                   (void)]
+                 [(id : type)
+                  (let ([id #'id])
+                    (unless (identifier? id)
+                      (raise-syntax-error 'declaration "expected an identifier before `:`" id))
+                    (unless (for/or ([p (in-list def-env)])
+                              (free-identifier=? id (car p)))
+                      (raise-syntax-error 'declaration "not defined within the definition context" id))
+                    (unify! expr
+                            (poly-instance (lookup id def-env))
+                            (parse-type/accum #'type (box (unbox tvars-box)))))]
+                 [(id : . _)
+                  (if (identifier? #'id)
+                      (raise-syntax-error 'declaration "expected a single type after `:`" expr)
+                      (raise-syntax-error 'declaration "expected an identifier before `:`" #'id))]
                  [(define: (id arg ...) . rest)
                   (typecheck #'(define: id (lambda: (arg ...) . rest))
                              env
@@ -3344,8 +3354,13 @@
                             [else
                              #`(typecheck #,lazy? #,untyped? form ...)])])
          #`(printing-module-begin
-            form ...
+            (drop-type-decl form) ...
             end)))]))
+
+(define-syntax drop-type-decl
+  (syntax-rules (:)
+    [(_ (_ : . _)) (void)]
+    [(_ other) other]))
 
 (define-syntax printing-module-begin
   (make-wrapping-module-begin #'print-result))

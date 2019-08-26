@@ -44,14 +44,26 @@ The Plait language syntactically resembles the
 
 @; --------------------------------------------------
 
-@section{Definitions}
+@section[#:tag "Definitions"]{Definitions}
 
 The body of a @schememodname[plait] module is a sequence of
-definitions and expressions, and the module implicitly exports all
+definitions, expressions and type declarations. The module implicitly exports all
 top-level definitions. When a @racketmodname[plait] module is
 imported into a module that does not use @racketmodname[plait],
 the imports have contracts (matching reflecting the exported bindings'
 types).
+
+@defform[#:link-target? #f
+         #:id [: #':]
+         #:literals (:)
+         (id : type)]{
+
+Declares that @racket[id] has type @racket[type]. This type
+declaration and the definition of @racket[id] must be within the same
+definition sequence, either at the top of a module or together in 
+a set of @racket[local] definitions.
+
+@history[#:added "1.1"]}
 
 @defform*/subs[#:literals (:)
                [(define id expr)
@@ -574,7 +586,7 @@ returning @racket[(void)]. A @racket[when] form evaluates its
 
 
 @deftogether[(
-@defform[(local [definition ...] expr)]
+@defform[(local [definition-or-type-declaration ...] expr)]
 @defform[(letrec ([id rhs-expr] ...) expr)]
 @defform[(let ([id rhs-expr] ...) expr)]
 @defform[(let* ([id rhs-expr] ...) expr)]
@@ -583,7 +595,8 @@ returning @racket[(void)]. A @racket[when] form evaluates its
 @tutorial["definitions-tutorial"]
 
 Local binding forms. The @racket[local] form accommodates multiple
-definitions that visible only among the definitions and the body
+definitions and type declarations (using @racket[:])
+that are visible only among the definitions and the body
 @racket[expr]. The @racket[letrec], @racket[let], and @racket[let*]
 forms bind each @racket[id] to the value of the corresponding
 @racket[rhs-expr] (where the @racket[rhs-expr]s are evaluated in
@@ -595,7 +608,9 @@ visible only to later @racket[rhs-expr]s as well as in the body
 @racket[expr].
 
 @examples[#:eval demo
-(local [(define (add-x y) (+ x y))
+(local [(add-x : (Number -> Number))
+        (x : Number)
+        (define (add-x y) (+ x y))
         (define x 2)]
   (add-x 3))
 (eval:error add-x)
@@ -1763,7 +1778,8 @@ variables within the expressions:
 
 Syntactic literals are for use in declarations such as @racket[define]
 and @racket[require]; see @racket[define] and @racket[require] for
-more information.}
+more information. A @racket[:] can also be used for a type declaration
+within a definition sequence; see @secref["Definitions"].}
 
 @; ----------------------------------------
 

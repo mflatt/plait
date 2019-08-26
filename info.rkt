@@ -11,6 +11,6 @@
 
 (define test-omit-paths '("scribblings/demo.rkt"))
 
-(define version "0.1")
+(define version "1.1")
 
 (define scribblings '(("scribblings/plait.scrbl" (multi-page) (language))))
