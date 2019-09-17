@@ -1062,8 +1062,9 @@ that is passed to @racket[add-to-each]:
 (add-to-each 70 '(1 2 3))
 ]
 
-You can declare types for @racket[lambda] arguments and results similar
-to declaring them in a function-definition shorthand:
+You can declare types for @racket[lambda] arguments and results
+similar to declaring them with @racket[define] in the
+function-definition shorthand:
 
 @interaction[
 #:no-prompt

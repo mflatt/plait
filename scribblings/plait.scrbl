@@ -604,7 +604,7 @@ forms bind each @racket[id] to the value of the corresponding
 order). In the case of @racket[letrec], each @racket[id] is visible to
 every @racket[rhs-expr] as well as in the body @racket[expr]. In the
 case of @racket[let], each @racket[id] is visible only in the body
-@racket[expr]. In the case of @racket[letrec], each @racket[id] is
+@racket[expr]. In the case of @racket[let*], each @racket[id] is
 visible only to later @racket[rhs-expr]s as well as in the body
 @racket[expr].
 
