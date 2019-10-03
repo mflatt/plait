@@ -1499,7 +1499,9 @@
      (syntax-case stx ()
        [(_ id expr)
         (if (identifier? #'id)
-            #'(set! id expr)
+          (with-syntax ([set! (if lazy? #'lazy:set! #'set!)])
+            (syntax/loc stx
+              (set! id expr)))
             (raise-syntax-error #f
                                 "expected an identifier"
                                 stx

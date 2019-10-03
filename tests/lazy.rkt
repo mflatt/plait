@@ -38,6 +38,19 @@
 
 ;; ----------------------------------------
 
+(test (let ([a 5] [f (lambda (x y) y)])
+        (f
+          (set! a 6)
+          a))
+      5)
+
+(test (let ([a 5])
+        (let ([b (set! a 6)])
+          (if (equal? (void) b) a -1)))
+      6)
+
+;; ----------------------------------------
+
 (define-type (MyList 'a)
   (my-empty)
   (my-cons [a : 'a]
