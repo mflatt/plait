@@ -903,7 +903,9 @@
            #f
            (reverse (constructor-syntax-selectors c))
            (reverse (constructor-syntax-mutators c))
-           #f))))
+           #f)))
+ (struct reprovided-constructor-syntax (id transformer)
+   #:property prop:procedure (struct-field-index transformer)))
 
 (define-for-syntax expand-define-type
   (lambda (stx)
@@ -1120,12 +1122,16 @@
             (with-syntax ([$variant (syntax-case #'variant (none: some:)
                                       [none: (if lazy? #'lazy-none #'none)]
                                       [some: (if lazy? #'lazy-some #'some)]
-                                      [else
+                                      [_
                                        (let ([c (syntax-local-value #'variant (lambda () #f))])
-                                         (if (constructor-syntax? c)
-                                             (let ([id (constructor-syntax-id c)])
-                                               (datum->syntax id (syntax-e id) #'variant))
-                                             #'variant))])])
+                                         (cond
+                                           [(constructor-syntax? c)
+                                            (let ([id (constructor-syntax-id c)])
+                                              (datum->syntax id (syntax-e id) #'variant))]
+                                           [(reprovided-constructor-syntax? c)
+                                            (let ([id (reprovided-constructor-syntax-id c)])
+                                              (datum->syntax id (syntax-e id) #'variant))]
+                                           [else #'variant]))])])
               (syntax/loc clause
                 [$variant (id ...) (#%expression ans)]))]
            [[else ans]
@@ -3167,6 +3173,8 @@
               (provide #,@(for/list ([name (in-list names)]
                                      [tl-name (in-list tl-names)])
                             #`(rename-out [#,name #,tl-name])))))
+      ;; Also, export type definitions:
+      (provide #,@(map car dts))
       ;; Providing each binding renamed to a generated symbol doesn't
       ;; make the binding directly inaccessible, but it makes the binding
       ;; marked as "exported" for the purposes of inspector-guarded
@@ -3262,7 +3270,12 @@
                                (cdr (syntax-e stx)))
                          stx
                          stx)]))
-      redirect))
+      (define id-val (syntax-local-value id (lambda () #f)))
+      (cond
+        [(constructor-syntax? id-val)
+         (reprovided-constructor-syntax (constructor-syntax-id id-val) redirect)]
+        [else
+         redirect])))
   (apply values redirects))
 
 (define-for-syntax orig-body #f)

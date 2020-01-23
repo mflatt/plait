@@ -27,3 +27,7 @@
 
 (define bs : Bstring (generate-bstring 65 78))
 (test 65 (extract-first bs))
+
+(test "hi"
+      (type-case Linked-List (llnode "hi" (none))
+        [(llnode s next) s]))

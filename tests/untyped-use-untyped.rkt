@@ -6,3 +6,7 @@
     (error 'test "failed: ~.s" `b)))
 
 (test '(6 6) (apply-identity (lambda (x) 6) 5))
+
+(test "hi"
+      (type-case Linked-List (llnode "hi" (none))
+        [(llnode s next) s]))
