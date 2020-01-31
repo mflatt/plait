@@ -585,16 +585,19 @@
                                                     (list 'submod "." (cadr s))
                                                     ;; ok as-is:
                                                     s))
-                                     (define typed? 
+                                     (define (has-submodule? name)
                                        (module-declared? (absolute-module-path
                                                           (if (and (pair? xs) (eq? (car xs) 'submod))
-                                                              `(,@xs plait)
-                                                              `(submod ,xs plait)))
+                                                              `(,@xs ,name)
+                                                              `(submod ,xs ,name)))
                                                          #t))
+                                     (define typed? (has-submodule? 'plait))
                                      (unless typed?
                                        (when (module-declared? (absolute-module-path xs) #t)
                                          (raise-syntax-error #f
-                                                             "not a `plait' module"
+                                                             (if (has-submodule? 'untyped-plait)
+                                                                 "not a typed `plait' module"
+                                                                 "not a `plait' module")
                                                              stx
                                                              #'mp)))
                                      (fixup-quote
@@ -3290,7 +3293,7 @@
                   #`[#,(car tl-thing)
                      #,(gensym)])
                 tl-types)))
-      (module* plait #f
+      (module* #,(if untyped? #'untyped-plait #'plait) #f
         (begin-for-syntax
           (add-types!
            ;; datatypes:
