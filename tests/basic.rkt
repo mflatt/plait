@@ -435,3 +435,22 @@
  (spliced-x : Number)
  (define spliced-x 1)
  (define spliced-y 2))
+
+
+(define-type Spell
+  (incantation))
+
+(define-type-alias Incantation Spell)
+
+(test (type-case Incantation (incantation)
+        [(incantation) ""])
+      "")
+
+(define-type-alias (Magic 'x) (Listof 'x))
+(define-type-alias Incantations (Magic Incantation))
+
+(test (type-case Incantations (list (incantation))
+        [empty 'no]
+        [(cons inc ls) 'yes])
+      'yes)
+

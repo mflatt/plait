@@ -1017,6 +1017,9 @@
 (define-syntax define-type:
   (check-top expand-define-type))
 
+(begin-for-syntax
+  (struct type-alias (args rhs)))
+
 (define-syntax define-type-alias
   (check-top
    (lambda (stx)
@@ -1028,13 +1031,14 @@
                    (raise-syntax-error #f "expected an identifier" stx id)))
                (syntax->list #'(id arg ...)))
           (check-defn-keyword #'id stx)
-          #'(void))]
+          #`(define-syntax id (type-alias (list (quote-syntax arg) ...) (quote-syntax t))))]
        [(_ id t)
-        (let ([id #'id])
-          (unless (identifier? id)
-            (raise-syntax-error #f "expected `<id>' or `(<id> '<id> ...)'" stx id))
-          (check-defn-keyword #'id stx)
-          #'(void))]))))
+        (begin
+          (let ([id #'id])
+            (unless (identifier? id)
+              (raise-syntax-error #f "expected `<id>' or `(<id> '<id> ...)'" stx id))
+            (check-defn-keyword #'id stx))
+          #`(define-syntax id (type-alias null (quote-syntax t))))]))))
 
 (define-syntax begin:
   (check-top
@@ -1228,6 +1232,25 @@
            clause ...)
         (with-syntax ([(_ . rest) stx])
           #'(listof-type-case . rest))]
+       [(_ aliased expr
+           clause ...)
+        ;; handle type alias for `(listof: t)`
+        (let loop ([aliased #'aliased] [seen null])
+          (define id (if (identifier? aliased)
+                         aliased
+                         (syntax-case aliased ()
+                           [(id arg ...) #'id])))
+          (when (for/or ([seen-id (in-list seen)])
+                  (free-identifier=? seen-id id))
+            (raise-syntax-error #f
+                                "recursively defined type alias"
+                                id))
+          (define val (syntax-local-value id (lambda () #f)))
+          (cond
+            [(type-alias? val) (loop (type-alias-rhs val) (cons id seen))]
+            [else (free-identifier=? id #'listof:)]))        
+        (with-syntax ([(_ . rest) stx])
+          #'(listof-type-case . rest))]
        [(_ thing . rest)
         (not (or (identifier? #'thing)
                  (syntax-case #'thing ()
@@ -1240,13 +1263,19 @@
          stx
          #'thing)]
        [(_ type expr [(variant id ...) ans] ...)
-        (with-syntax ([type (if (identifier? #'type)
-                                #'type
-                                (syntax-case #'type (Optionof)
-                                  [(Optionof arg ...)
-                                   lazy?
-                                   #'lazy-Optionof]
-                                  [(id arg ...) #'id]))]
+        (with-syntax ([type (let loop ([type #'type])
+                              (define type-id
+                                (if (identifier? type)
+                                    type
+                                    (syntax-case type (Optionof)
+                                      [(Optionof arg ...)
+                                       lazy?
+                                       #'lazy-Optionof]
+                                      [(id arg ...) #'id])))
+                              (define val (syntax-local-value type-id (lambda () #f)))
+                              (if (type-alias? val)
+                                  (loop (type-alias-rhs val))
+                                  type-id))]
                       [(clause ...) (convert-clauses stx)]
                       [type-case (if lazy? #'lazy:type-case #'type-case)])
           (syntax/loc stx
@@ -1289,7 +1318,7 @@
                            stx
                            clause)]))
   (syntax-case stx ()
-    [(_ (_ t) expr
+    [(_ _ expr
         clause ...)
      (let ([clauses (syntax->list #'(clause ...))])
        (define done
@@ -1746,6 +1775,49 @@
                                (cons (list #'name null #'ty) aliases)]
                               [else aliases]))
                           aliases)]
+         [expand-alias-application (lambda (t id types seen k)
+                                     (ormap (lambda (d)
+                                              (and (and (identifier? id)
+                                                        (free-identifier=? (car d) id))
+                                                   (begin
+                                                     (unless (= (length (cadr d)) (length types))
+                                                       
+                                                       (raise-syntax-error
+                                                        #f
+                                                        (if (zero? (cdr d))
+                                                            "bad type (incorrect use of a non-polymorphic type alias name)"
+                                                            "type alias constructor applied to the wrong number of types")
+                                                        t))
+                                                     (when (ormap (lambda (s)
+                                                                    (free-identifier=? s id))
+                                                                  seen)
+                                                       (raise-syntax-error
+                                                        #f
+                                                        "recursively defined type alias"
+                                                        t))
+                                                     
+                                                     (k (cadr d)
+                                                        (caddr d)
+                                                        (cons (car d) seen)))))
+                                            aliases))]
+         [expand-alias-id (lambda (t seen k)
+                            (ormap (lambda (d)
+                                     (and (free-identifier=? (car d) t)
+                                          (begin
+                                            (unless (cadr d)
+                                              (raise-syntax-error
+                                               #f
+                                               "type alias constructor must be applied to types"
+                                               t))
+                                            (when (ormap (lambda (s)
+                                                           (free-identifier=? s t))
+                                                         seen)
+                                              (raise-syntax-error
+                                               #f
+                                               "recursively defined type alias"
+                                               t))
+                                            (k (caddr d) (cons (car d) seen)))))
+                                   aliases))]
          [make-polymorphic-wrt
           (lambda (t ty tvars)
             (let loop ([tvars tvars] [ty ty])
@@ -1849,35 +1921,17 @@
                                                            "bad type (incorrect use of a non-polymorphic type name)"
                                                            t))))
                                                opaques))
-                                   (ormap (lambda (d)
-                                            (and (and (identifier? #'id)
-                                                      (free-identifier=? (car d) #'id))
-                                                 (begin
-                                                   (unless (= (length (cadr d)) (length types))
-                                                     
-                                                     (raise-syntax-error
-                                                      #f
-                                                      (if (zero? (cdr d))
-                                                          "bad type (incorrect use of a non-polymorphic type alias name)"
-                                                          "type alias constructor applied to the wrong number of types")
-                                                      t))
-                                                   (when (ormap (lambda (s)
-                                                                  (free-identifier=? s #'id))
-                                                                seen)
-                                                     (raise-syntax-error
-                                                      #f
-                                                      "recursively defined type alias"
-                                                      t))
-                                                   (parse-one 
-                                                    (cons (car d) seen)
-                                                    (append (map (lambda (formal arg) 
-                                                                   (cons formal 
-                                                                         (loop arg)))
-                                                                 (cadr d)
-                                                                 types)
-                                                            tenv)
-                                                    (caddr d)))))
-                                          aliases)
+                                   (expand-alias-application
+                                    t #'id types seen
+                                    (lambda (formals rhs seen)
+                                      (parse-one seen
+                                                 (append (map (lambda (formal arg) 
+                                                                (cons formal 
+                                                                      (loop arg)))
+                                                              formals
+                                                              types)
+                                                         tenv)
+                                                 rhs)))
                                    (raise-syntax-error
                                     #f
                                     "bad type"
@@ -1904,23 +1958,9 @@
                                                      (cdr d))))
                                              opaques))
                                  (and (identifier? t)
-                                      (ormap (lambda (d)
-                                               (and (free-identifier=? (car d) t)
-                                                    (begin
-                                                      (unless (cadr d)
-                                                        (raise-syntax-error
-                                                         #f
-                                                         "type alias constructor must be applied to types"
-                                                         t))
-                                                      (when (ormap (lambda (s)
-                                                                     (free-identifier=? s t))
-                                                                   seen)
-                                                        (raise-syntax-error
-                                                         #f
-                                                         "recursively defined type alias"
-                                                         t))
-                                                      (parse-one (cons (car d) seen) tenv (caddr d)))))
-                                             aliases))
+                                      (expand-alias-id t seen
+                                                       (lambda (rhs seen)
+                                                         (parse-one seen tenv rhs))))
                                  (raise-syntax-error
                                   #f
                                   "bad type"
@@ -1945,6 +1985,40 @@
                                (syntax-case arg (:)
                                  [(id : type) (parse-mono-type #'type tvars-box)]
                                  [_ (gen-tvar #'arg)])))]
+         [expand-alias (lambda (t)
+                         ;; Usually handled by `parse-type` above, but we need a direct expansion
+                         ;; to handle `listof:` in `type-case`. Loop to make sure we discover a
+                         ;; cyclic alias.
+                         (let loop ([t t] [seen '()])
+                           (syntax-case t ()
+                             [(id arg-type ...)
+                              (let ([arg-types (syntax->list #'(arg-type ...))])
+                                (expand-alias-application
+                                 t #'id arg-types seen
+                                 (lambda (formals rhs seen)
+                                   (define new-type
+                                     (let subst ([rhs rhs])
+                                       (syntax-case rhs (quote:)
+                                         [(sub ...)
+                                          (with-syntax ([(sub ...) (map subst (syntax->list #'(sub ...)))])
+                                            (syntax/loc rhs (sub ...)))]
+                                         [(quote: id)
+                                          (identifier? #'id)
+                                          (or (for/or ([formal (in-list formals)]
+                                                       [arg-type (in-list arg-types)])
+                                                (and (free-identifier=? rhs formal)
+                                                     arg-type))
+                                              (raise-syntax-error 'type "unbound type variable" rhs))]
+                                         [_ rhs])))
+                                   (or (loop new-type seen)
+                                       new-type))))]
+                             [_
+                              (identifier? t)
+                              (expand-alias-id
+                               t seen
+                               (lambda (rhs seen)
+                                 (or (loop rhs seen)
+                                     rhs)))])))]
          [macros (apply append
                         (map 
                          (lambda (stx)
@@ -2589,6 +2663,19 @@
                                (type-case: type val [(variant id ...) ans] ... [(empty-list) else-ans]))
                              env
                              tvars-box)]
+                 [(type-case: type val clause ...)
+                  ;; a type alias can expand to `Listof`, so catch that possibility here
+                  (let ([new-type (expand-alias #'type)])
+                    (cond
+                      [new-type
+                       (syntax-case expr ()
+                         [(tc . _)
+                          (with-syntax ([new-type new-type])
+                            (typecheck (syntax/loc expr
+                                         (tc new-type val clause ...))
+                                       env
+                                       tvars-box))])]
+                      [else (signal-typecase-syntax-error expr)]))]
                  [(type-case: . rest)
                   (signal-typecase-syntax-error expr)]
                  [(quote: e)
@@ -3190,6 +3277,8 @@
                             #`(rename-out [#,name #,tl-name])))))
       ;; Also, export type definitions:
       (provide #,@(map car dts))
+      ;; And aliases
+      (provide #,@(map car als))
       ;; Providing each binding renamed to a generated symbol doesn't
       ;; make the binding directly inaccessible, but it makes the binding
       ;; marked as "exported" for the purposes of inspector-guarded
@@ -3234,15 +3323,10 @@
                            #`(cons (quote-syntax #,(car tl-thing))
                                    #,(to-expression (cdr tl-thing) #hasheq())))
                          tl-types))))
-        (provide #,@(map (λ (tl-thing)
-                           (car tl-thing))
-                         tl-types)
-                 #,@(map (λ (dt)
-                           (car dt))
-                         dts)
-                 #,@(map (λ (opq)
-                           (car opq))
-                         opqs)
+        (provide #,@(map car tl-types)
+                 #,@(map car dts)
+                 #,@(map car als)
+                 #,@(map car opqs)
                  #,@macros
                  ;; datatype predicates for contracts:
                  #,@(map (lambda (dt)
