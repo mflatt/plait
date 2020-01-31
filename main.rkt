@@ -243,6 +243,18 @@
               (and (s-exp-list? s)
                    (list-match? (s-exp->list pattern)
                                 (s-exp->list s)))]
+             [(s-exp-number? pattern)
+              (and (s-exp-number? s)
+                   (= (s-exp->number s)
+                      (s-exp->number pattern)))]
+             [(s-exp-boolean? pattern)
+              (and (s-exp-boolean? s)
+                   (eq? (s-exp->boolean s)
+                        (s-exp->boolean pattern)))]
+             [(s-exp-string? pattern)
+              (and (s-exp-string? s)
+                   (equal? (s-exp->string s)
+                           (s-exp->string pattern)))]
              [(eq? 'ANY (s-exp->symbol pattern))
               #t]
              [(eq? 'SYMBOL (s-exp->symbol pattern))
@@ -256,7 +268,6 @@
               (and (s-exp-symbol? s)
                    (eq? (s-exp->symbol s)
                         (s-exp->symbol pattern)))]))
-          
           ;; check a list of s-expr against a list of patterns,
           ;; handling '... among the patterns
           (define (list-match? patterns ses)
@@ -293,6 +304,10 @@
             (cond
              [(s-exp-list? pattern)
               (check-patterns (s-exp->list pattern) #f)]
+             [(or (s-exp-boolean? pattern)
+                  (s-exp-number? pattern)
+                  (s-exp-string? pattern))
+              (void)]
              [(not (s-exp-symbol? pattern))
               (error 's-exp-match? 
                      (string-append "bad pattern: "

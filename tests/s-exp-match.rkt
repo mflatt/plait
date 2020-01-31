@@ -58,13 +58,24 @@
 (test (s-exp-match? `((a ...) b ...) `((a a a) b c b b))
       #f)
 
+(test (s-exp-match? `10 `10)
+      #t)
+(test (s-exp-match? `#f `#f)
+      #t)
+(test (s-exp-match? `#t `#t)
+      #t)
+(test (s-exp-match? `"hello" `"hello")
+      #t)
+(test (s-exp-match? `10 `#f)
+      #f)
+(test (s-exp-match? `"hello" `#f)
+      #f)
+(test (s-exp-match? `#f `10)
+      #f)
+
 (test/exn (s-exp-match? `... `10)
           "misplaced")
 (test/exn (s-exp-match? `(...) `10)
           "misplaced")
 (test/exn (s-exp-match? `(a ... b ...) `10)
           "multiple")
-(test/exn (s-exp-match? `10 `10)
-          "bad pattern")
-
-
