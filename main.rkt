@@ -1374,7 +1374,7 @@
                                   (identifier? (last ques))
                                   (free-identifier=? (last ques) #'else))
                              null
-                             #'([else (cond-error)])))]
+                             #`([else #,(syntax/loc stx (cond-error))])))]
                       [cond (if lazy? #'lazy:cond #'cond)])
           (syntax/loc stx
             (cond [ques (#%expression ans)] ... catch ...)))]
