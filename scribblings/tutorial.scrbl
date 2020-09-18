@@ -17,11 +17,11 @@
 
 @(define-runtime-path demo.rkt "demo.rkt")
 
+@(define demo-link @elem[#:style (style #f (list (link-resource demo.rkt)))]{@filepath{demo.rkt}})
+
 @title[#:style 'toc]{Tutorial}
 
-@margin-note{For a quick refresher of the tutorial content, try
-@elem[#:style (style #f (list (link-resource
-demo.rkt)))]{@filepath{demo.rkt}}.}
+@margin-note{For a quick refresher of the tutorial content, try @|demo-link|.}
 
 @local-table-of-contents[]
 
@@ -53,7 +53,7 @@ not print before the result.
 
 In a few places, the tutorial shows lines that include a semicolon,
 @litchar{;}. A semicolon starts a comment that continues to the end of
-the line.
+the line. For examples of other comment forms, see @|demo-link|.
 
 @; ----------------------------------------
 @section[#:tag "data-tutorial"]{Simple Data}
