@@ -1141,9 +1141,10 @@
                            stx
                            id)))
                       (syntax->list #'(id ...)))
-            (with-syntax ([$variant (syntax-case #'variant (none: some:)
+            (with-syntax ([$variant (syntax-case #'variant (none: some: else)
                                       [none: (if lazy? #'lazy-none #'none)]
                                       [some: (if lazy? #'lazy-some #'some)]
+                                      [else (raise-syntax-error #f "not allowed as an expression in parentheses" #'variant)]
                                       [_
                                        (let ([c (syntax-local-value #'variant (lambda () #f))])
                                          (cond
