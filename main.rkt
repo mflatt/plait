@@ -2026,10 +2026,12 @@
          [macros (apply append
                         (map 
                          (lambda (stx)
-                           (syntax-case stx (define-syntax:)
+                           (syntax-case stx (define-syntax: define-syntax-rule:)
                              [(define-syntax: (id . _) . _)
                               (list #'id)]
                              [(define-syntax: id . _)
+                              (list #'id)]
+                             [(define-syntax-rule: (id . _) . _)
                               (list #'id)]
                              [_ null]))
                          tl))]

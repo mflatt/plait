@@ -31,3 +31,10 @@
 (test "hi"
       (type-case Linked-List (llnode "hi" (none))
         [(llnode s next) s]))
+
+(test 14 (twice 7))
+(test 3 (a-macro))
+
+(define-seven qi more-qi)
+(test 7 qi)
+(test 7 more-qi)
