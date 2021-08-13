@@ -3266,8 +3266,7 @@
       ;; Export identifiers for untyped use as redirections to the
       ;; submodule:
       (module with-contracts-reference racket/base
-        (require racket/runtime-path
-                 (for-syntax racket/base))
+        (require plait/private/contract-support)
         (define-runtime-module-path-index contracts-submod
           '(submod ".." with-contracts))
         (provide contracts-submod))
