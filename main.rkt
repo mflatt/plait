@@ -1458,7 +1458,8 @@
                                [_ (raise-syntax-error #f
                                                       "expected (<id/num> ...)"
                                                       stx
-                                                      (car altss))])))])
+                                                      (car altss))])))]
+                      [case (if lazy? #'lazy:case #'case)])
           (syntax/loc stx
             (case expr [alts (#%expression ans)] ... catch ...)))]
        [(_ expr thing ...)
@@ -1561,13 +1562,17 @@
   
 (define-syntax and:
   (check-top
-   (syntax-rules ()
-     [(_ arg ...) (and arg ...)])))
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ arg ...) (with-syntax ([and (if lazy? #'lazy:and #'and)])
+                      (syntax/loc stx (and arg ...)))]))))
 
 (define-syntax or:
   (check-top
-   (syntax-rules ()
-     [(_ arg ...) (or arg ...)])))
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ arg ...) (with-syntax ([or (if lazy? #'lazy:or #'or)])
+                      (syntax/loc stx (or arg ...)))]))))
 
 (define-syntax set!:
   (check-top

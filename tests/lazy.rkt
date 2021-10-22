@@ -80,6 +80,18 @@
 
 ;; ----------------------------------------
 
+(test (and (zero? 1) (zero? 0))
+      #f)
+(test (or (zero? 1) (zero? 0))
+     #t)
+
+(test (case (+ 1 2)
+        [(3) 'ok]
+        [else 'no])
+      'ok)
+
+;; ----------------------------------------
+
 (define (show-the-result)
   'this-result-should-print)
 
