@@ -1828,6 +1828,8 @@ a few small exceptions:
    A minor consequence is that polymorphic recursion (i.e., a self
    call with an argument whose type is different than that for the
    current call) is allowed. Recursive types, however, are prohibited.
+   Polymorphic recursion is not decidable, so see @racket[#:fuel] in
+   @secref["untyped-and-lazy"].
 
    The usual value restriction applies for inferring polymorphic
    types, where expression matching the following grammar
@@ -1884,7 +1886,7 @@ annotations can help focus the error message.
 
 @; ----------------------------------------
 
-@section[#:tag "untyped-and-lazy"]{Untyped and Lazy Modes}
+@section[#:tag "untyped-and-lazy"]{Untyped, Lazy, and Fuel Modes}
 
 Use @racket[#:untyped] immediately after @racket[@#,hash-lang[]
 @#,racketmodname[plait]] to disable type checking. The syntax of a
@@ -1901,8 +1903,13 @@ calls are evaluated only when forced (by a test or by printing,
 ultimately). A lazy Plait module will not interoperate well with an
 eager module.
 
-The @racket[#:untyped] and @racket[#:lazy] modifiers can be combined,
-and the combination can be declared in either order.
+Use @racket[#:fuel _amount] immediately after @racket[@#,hash-lang[]
+@#,racketmodname[plait]] to specify how much effort should be spent
+resolving potentially cyclic dependencies due to inference of
+polymorphic recursion. The default fuel is @racket[100].
+
+The @racket[#:untyped], @racket[#:lazy], and @racket[#:fuel] modifiers
+can be combined, and the combination can be declared in any order.
 
 @; ----------------------------------------
 

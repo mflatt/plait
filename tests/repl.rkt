@@ -88,3 +88,7 @@
 (tl "- ('a -> 'a)\n#<procedure:idt>\n" 'idt)
 (te (regexp-quote "('a -> 'a) vs. ('_b -> '_b)")
     '(define (idt x) x))
+
+(te "possible cycle"
+    '(define (nstream x)
+       (values 1 (nstream 10))))

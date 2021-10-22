@@ -24,8 +24,8 @@
 ;; be generalized by let polyporphism. This is necessary because we
 ;; delay let-based polymorphism to the end of checking a whole module,
 ;; which allows inferring types of recursive functions (at the expense
-;; of potentially looping in the type checker, although it doesn't
-;; happen in practice). The `non-poly` field is a list of gensyms that
+;; of potentially looping in the type checker, so we have a fuel limit
+;; in `let-based-poly!`). The `non-poly` field is a list of gensyms that
 ;; correspods to the `poly-context` field of a `defn`, or it is #f to
 ;; mean "extension of any poly context". A type variable can be
 ;; generalized only for a definition whose context is shorter than
@@ -66,7 +66,7 @@
 (define-struct (boxof type) (element))
 (define-struct (vectorof type) (element) #:transparent)
 (define-struct (hashof type) (key val))
-(define-struct (tupleof type) (args))
+(define-struct (tupleof type) (args) #:transparent)
 (define-struct (parameterof type) (element))
 (define-struct (datatype type) (id args))
 (define-struct (opaque-datatype datatype) (pred))
@@ -704,22 +704,32 @@
                       poly)))))
        env))
 
-(define (let-based-poly! env)
+(define (let-based-poly! env fuel)
   (let ([defn-types
           ;; Find fixpoint of defn-type polymorphism:
-          (let loop ([defn-types (resolve-defn-types env)])
+          (let loop ([defn-types (resolve-defn-types env)] [fuel fuel])
             (let ([new-defn-types (resolve-defn-types env)])
-              (if (andmap (lambda (a b)
-                            (let loop ([a a] [b b])
-                              (cond
-                               [(poly? a)
-                                (and (poly? b)
-                                     (loop (poly-type a) (poly-type b)))]
-                               [(poly? b) #f]
-                               [else #t])))
-                          defn-types new-defn-types)
-                  new-defn-types
-                  (loop new-defn-types))))])
+              (cond
+                [(andmap (lambda (orig-a orig-b p)
+                           (let loop ([a orig-a] [b orig-b])
+                             (or (cond
+                                   [(poly? a)
+                                    (and (poly? b)
+                                         (loop (poly-type a) (poly-type b))
+                                         (= (type-size (poly-tvar a)) (type-size (poly-tvar b))))]
+                                   [(poly? b) #f]
+                                   [else (= (type-size a) (type-size b))])
+                                 (begin
+                                   (when (zero? fuel)
+                                     (raise-typecheck-error (type-src (cdr p)) orig-a orig-b
+                                                            "possible cycle in type constraints; increae #:fuel to try more"))
+                                   #f))))
+                         defn-types
+                         new-defn-types
+                         env)
+                 new-defn-types]
+                [else
+                 (loop new-defn-types (sub1 fuel))])))])
     (map (lambda (p defn-type)
            (let ([id (car p)]
                  [t (cdr p)])
@@ -727,6 +737,41 @@
                  (cons id defn-type)
                  p)))
          env defn-types)))
+
+(define (type-size b)
+  (cond
+    [(tvar? b)
+     (if (tvar-rep b)
+         (type-size (tvar-rep b))
+         1)]
+    [(arrow? b)
+     (+ 1
+        (for/sum ([b (in-list (arrow-args b))])
+          (type-size b))
+        (type-size (arrow-result b)))]
+   [(listof? b)
+    (+ 1 (type-size (listof-element b)))]
+   [(boxof? b)
+    (+ (type-size (boxof-element b)))]
+   [(vectorof? b)
+    (+ 1 (type-size (vectorof-element b)))]
+   [(hashof? b)
+    (+ 1
+       (type-size (hashof-key b))
+       (type-size (hashof-val b)))]
+   [(tupleof? b)
+    (+ 1 (for/sum ([b (in-list (tupleof-args b))])
+           (type-size b)))]
+   [(parameterof? b)
+    (+ 1 (type-size (parameterof-element b)))]
+   [(datatype? b)
+    (+ 1 (for/sum ([b (in-list (datatype-args b))])
+           (type-size b)))]
+   [(poly? b)
+    (+ 1
+       (type-size (poly-tvar b))
+       (type-size (poly-type b)))]
+   [else 1]))
 
 (define (occurs? a b)
   (cond

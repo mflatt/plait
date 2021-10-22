@@ -469,11 +469,11 @@ count                     ; => 1
   (set! count (+ count 1))
   count)                  ; => 2
 
-(local [(define x 0)]     ; note: demonstrates set! in local,
+(local [(define x '())]   ; note: demonstrates set! in local,
   (begin                  ;       but it's terrible style
-    (set! x (list x))     ;
-    (set! x (list x))     ;
-    x))                   ; => '((0))
+    (set! x (cons 1 x))   ;
+    (set! x (cons 2 x))   ;
+    x))                   ; => '(2 1)
 
 ;; set-box! is a function:
 

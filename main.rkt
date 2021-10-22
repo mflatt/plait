@@ -168,6 +168,7 @@
 (begin-for-syntax
   (define untyped? #f)
   (define lazy? #f)
+  (define fuel 100)
   (define saw-submodules (make-hasheq)))
 
 (define-type Optionof
@@ -2831,7 +2832,7 @@
     (define poly-env
       (if orig-let-polys
           def-env
-          (let-based-poly! (apply append (unbox let-polys)))))
+          (let-based-poly! (apply append (unbox let-polys)) fuel)))
     (define poly-def-env
       (if (eq? poly-env def-env)
           def-env
@@ -3392,7 +3393,7 @@
                                       (drop aliases a-len)
                                       (drop variants v-len)
                                       macros
-                                      (let-based-poly! tl-types)
+                                      (let-based-poly! tl-types fuel)
                                       submods
                                       #f))))))
 
@@ -3425,18 +3426,20 @@
 (define-for-syntax orig-body #f)
 (define-for-syntax orig-is-lazy? #f)
 (define-for-syntax orig-is-untyped? #f)
+(define-for-syntax orig-fuel 100)
 (define-for-syntax orig-module-level-expansions null)
-(define-for-syntax (set-orig-body! v is-lazy? is-untyped? expansions)
+(define-for-syntax (set-orig-body! v is-lazy? is-untyped? fuel expansions)
   (set! orig-body v)
   (set! orig-is-lazy? is-lazy?)
   (set! orig-is-untyped? is-untyped?)
+  (set! orig-fuel fuel)
   (set! orig-module-level-expansions (map syntax-e (syntax->list expansions))))
 
 (define-syntax (typecheck stx)
   (syntax-case stx ()
-    [(_ is-lazy? is-untyped? . body)
+    [(_ is-lazy? is-untyped? fuel . body)
      #`(begin
-         (begin-for-syntax (set-orig-body! (quote-syntax body) is-lazy? is-untyped?
+         (begin-for-syntax (set-orig-body! (quote-syntax body) is-lazy? is-untyped? fuel
                                            (quote-syntax #,module-level-expansions)))
          ;; Typechecking happens after everything else is expanded:
          (typecheck-and-provide . body))]))
@@ -3446,6 +3449,7 @@
 (define-syntax (top-interaction stx)
   (set! lazy? orig-is-lazy?)
   (set! untyped? orig-is-untyped?)
+  (set! fuel orig-fuel)
   (syntax-case stx ()
     [(_ . body)
      untyped?
@@ -3528,6 +3532,13 @@
        (begin
          (set! lazy? #t)
          (filter-keywords! #'forms))]
+      [(#:fuel amt . forms)
+       (begin
+         (unless (exact-nonnegative-integer? (syntax-e #'amt))
+           (raise-syntax-error 'fuel "amount must be an exact nonnegative integer"
+                               #'amt))
+         (set! fuel (syntax-e #'amt))
+         (filter-keywords! #'forms))]
       [_ forms])))
 
 (define-syntax (module-begin stx)
@@ -3544,10 +3555,10 @@
                              #'(begin)]
                             [untyped?
                              #`(begin
-                                 (typecheck #,lazy? #t) ; sets untyped mode and laziness
+                                 (typecheck #,lazy? #t #,fuel) ; sets untyped mode and laziness
                                  (provide #,(datum->syntax stx `(,#'all-defined-out))))]
                             [else
-                             #`(typecheck #,lazy? #,untyped? form ...)])])
+                             #`(typecheck #,lazy? #,untyped? #,fuel form ...)])])
          #`(printing-module-begin
             (drop-type-decl form) ...
             end)))]))
