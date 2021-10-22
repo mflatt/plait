@@ -716,9 +716,19 @@
    #:property prop:procedure 0)
  (define macro-inspector (current-code-inspector))
 
- (define (add-begin proc)
+ (define module-level-expansions null)
+
+ (define (stash-and-add-begin proc)
    (lambda (stx)
      (define result (proc stx))
+     (when (eq? (syntax-local-context) 'module)
+       ;; We need to save the expansion so that we map macro-introduced
+       ;; defined identifiers in the environment as the actually bound
+       ;; identifier, and so that (in the macro of a macro-defining macro)
+       ;; we get expansions that refer to those identifiers:
+       (set! module-level-expansions
+             (cons (cons stx (syntax-local-introduce result))
+                   module-level-expansions)))
      (if (syntax? result)
          ;; Insert a `begin' wrapper so we can `local-expand' just once:
          #`(begin #,result)
@@ -737,10 +747,10 @@
         (syntax-case* #'rhs (syntax-rules lambda) free-transformer-identifier=?
           [(syntax-rules . _)
            (syntax/loc stx
-             (define-syntax id (typed-macro (add-begin rhs))))]
+             (define-syntax id (typed-macro (stash-and-add-begin rhs))))]
           [(lambda (arg) . rest)
            (syntax/loc stx
-             (define-syntax id (typed-macro (add-begin rhs))))]
+             (define-syntax id (typed-macro (stash-and-add-begin rhs))))]
           [_
            (raise-syntax-error #f "expected a `syntax-rules' or single-argument `lambda' form after identifier" stx)])]
        [(_ (id arg-id) . rest)
@@ -749,7 +759,7 @@
         (if (and (pair? (syntax-e #'rest))
                  (syntax->list #'rest))
             (syntax/loc stx
-              (define-syntax id (typed-macro (add-begin (lambda (arg-id) . rest)))))
+              (define-syntax id (typed-macro (stash-and-add-begin (lambda (arg-id) . rest)))))
             (raise-syntax-error #f "ill-formed macro body" stx))]
        [(_ id . _)
         (raise-syntax-error #f "expected an identifier or `(<identifier> <identifier>)' header" stx #'id)]))))
@@ -784,6 +794,18 @@
     [(begin e) (disarm #'e)]
     [_ (error 'local-expand-typed "something went wrong: ~e => ~e" expr stx)]))
 
+(define-for-syntax (local-expand-typed-toplevel expr)
+  (cond
+    [module-level-expansions
+     (when (or (null? module-level-expansions)
+               (not (equal? (syntax->datum (caar module-level-expansions))
+                            (syntax->datum expr))))
+       (error 'plait "unexpected expansion: ~.s" (syntax->datum expr)))
+     (begin0
+       (cdar module-level-expansions)
+       (set! module-level-expansions (cdr module-level-expansions)))]
+    [else (local-expand-typed expr)]))
+
 (define-for-syntax (expand-includes l)
   (let loop ([l l])
     (cond
@@ -799,7 +821,7 @@
         [(id . _)
          (and (identifier? #'id)
               (typed-macro? (syntax-local-value #'id (lambda () #f))))
-         (loop (cons (local-expand-typed (car l))
+         (loop (cons (local-expand-typed-toplevel (car l))
                      (cdr l)))]
         [_ (cons (car l) (loop (cdr l)))])])))
 
@@ -3239,19 +3261,30 @@
   (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
+  (set! module-level-expansions (reverse module-level-expansions))
+  (define tl-expansions module-level-expansions)
+  (define stxes (cdr (syntax->list stx)))
   (let-values ([(tys e2 dts opqs als vars macros tl-types subs)
                 (with-handlers ([exn:fail? (lambda (exn)
                                              (values exn #f #f #f #f #f #f null (hasheq)))])
-                  (do-original-typecheck (cdr (syntax->list stx))))])
+                  (do-original-typecheck stxes))])
     (if (exn? tys)
         ;; There was an exception while type checking. To order
         ;; type-checking errors after expansion, push the error into
         ;; a sub-expression:
         #`(#%expression (let-syntax ([x (raise #,tys)])
                           x))
-        (generate-provides tys e2 dts opqs als vars macros tl-types subs))))
+        (generate-provides tys e2 dts opqs als vars macros tl-types subs (and (pair? stxes)
+                                                                              (car stxes))))))
 
-(define-for-syntax (generate-provides tys e2 dts opqs als vars macros tl-types subs)
+(define-for-syntax (generate-provides tys e2 dts opqs als vars macros tl-types subs stx)
+  ;; don't export inaccessible identifiers that were macro-introduced:
+  (define (accessible? id)
+    (or (not stx)
+        (identifier-binding (datum->syntax stx (syntax-e id)))))
+  (define accessible-tl-types
+    (filter (lambda (tl-type) (accessible? (car tl-type)))
+            tl-types))
   #`(begin
       ;; Put all contracts implementations in a submodule,
       ;; so they're not loaded in a typed context:
@@ -3262,7 +3295,7 @@
           #,@(map (λ (tl-thing)
                     #`[#,(car tl-thing)
                        #,(to-contract (cdr tl-thing) #f)])
-                  tl-types))))
+                  accessible-tl-types))))
       ;; Export identifiers for untyped use as redirections to the
       ;; submodule:
       (module with-contracts-reference racket/base
@@ -3271,8 +3304,8 @@
           '(submod ".." with-contracts))
         (provide contracts-submod))
       (require (for-syntax (submod "." with-contracts-reference)))
-      #,(let ([names (map (lambda (_) (gensym)) tl-types)]
-              [tl-names (map car tl-types)])
+      #,(let ([names (map (lambda (_) (gensym)) accessible-tl-types)]
+              [tl-names (map car accessible-tl-types)])
           #`(begin
               (define-syntaxes #,names
                 ((make-make-redirects-to-contracts contracts-submod)
@@ -3281,9 +3314,9 @@
                                      [tl-name (in-list tl-names)])
                             #`(rename-out [#,name #,tl-name])))))
       ;; Also, export type definitions:
-      (provide #,@(map car dts))
+      (provide #,@(filter accessible? (map car dts)))
       ;; And aliases
-      (provide #,@(map car als))
+      (provide #,@(filter accessible? (map car als)))
       ;; Providing each binding renamed to a generated symbol doesn't
       ;; make the binding directly inaccessible, but it makes the binding
       ;; marked as "exported" for the purposes of inspector-guarded
@@ -3294,7 +3327,7 @@
         #,@(map (λ (tl-thing)
                   #`[#,(car tl-thing)
                      #,(gensym)])
-                tl-types)))
+                accessible-tl-types)))
       (module* #,(if untyped? #'untyped-plait #'plait) #f
         (begin-for-syntax
           (add-types!
@@ -3328,16 +3361,17 @@
                            #`(cons (quote-syntax #,(car tl-thing))
                                    #,(to-expression (cdr tl-thing) #hasheq())))
                          tl-types))))
-        (provide #,@(map car tl-types)
-                 #,@(map car dts)
-                 #,@(map car als)
-                 #,@(map car opqs)
-                 #,@macros
+        (provide #,@(map car accessible-tl-types)
+                 #,@(filter accessible? (map car dts))
+                 #,@(filter accessible? (map car als))
+                 #,@(filter accessible? (map car opqs))
+                 #,@(filter accessible? macros)
                  ;; datatype predicates for contracts:
-                 #,@(map (lambda (dt)
-                           (datum->syntax (car dt)
-                                          (string->symbol (format "~a?" (syntax-e (car dt))))))
-                         dts)))
+                 #,@(filter accessible?
+                            (map (lambda (dt)
+                                   (datum->syntax (car dt)
+                                                  (string->symbol (format "~a?" (syntax-e (car dt))))))
+                                 dts))))
       ;; Add provides to submodules, too:
       #,@(for/list ([(name vec) (in-hash subs)])
            (let-values ([(datatypes dt-len opaques o-len aliases a-len
@@ -3354,7 +3388,8 @@
                                       (drop variants v-len)
                                       macros
                                       (let-based-poly! tl-types)
-                                      submods))))))
+                                      submods
+                                      #f))))))
 
 (define-for-syntax ((make-make-redirects-to-contracts submod-modidx) ids)
   (define redirects
@@ -3385,16 +3420,19 @@
 (define-for-syntax orig-body #f)
 (define-for-syntax orig-is-lazy? #f)
 (define-for-syntax orig-is-untyped? #f)
-(define-for-syntax (set-orig-body! v is-lazy? is-untyped?)
+(define-for-syntax orig-module-level-expansions null)
+(define-for-syntax (set-orig-body! v is-lazy? is-untyped? expansions)
   (set! orig-body v)
   (set! orig-is-lazy? is-lazy?)
-  (set! orig-is-untyped? is-untyped?))
+  (set! orig-is-untyped? is-untyped?)
+  (set! orig-module-level-expansions (map syntax-e (syntax->list expansions))))
 
 (define-syntax (typecheck stx)
   (syntax-case stx ()
     [(_ is-lazy? is-untyped? . body)
-     #'(begin
-         (begin-for-syntax (set-orig-body! (quote-syntax body) is-lazy? is-untyped?))
+     #`(begin
+         (begin-for-syntax (set-orig-body! (quote-syntax body) is-lazy? is-untyped?
+                                           (quote-syntax #,module-level-expansions)))
          ;; Typechecking happens after everything else is expanded:
          (typecheck-and-provide . body))]))
 
@@ -3421,6 +3459,7 @@
                             [_
                              (local-expand #'(drop-type-decl body) 'top-level null)])])
        (unless tl-env
+         (set! module-level-expansions (reverse orig-module-level-expansions))
          (let-values ([(ts e d o a vars macros tl-types subs) 
                        (do-original-typecheck (syntax->list (if orig-body
                                                                 (syntax-local-introduce orig-body)
@@ -3431,6 +3470,7 @@
            (set! tl-env e)
            (set! tl-variants vars)
            (set! tl-submods subs)))
+       (set! module-level-expansions #f)
        (let-values ([(tys e2 d2 o2 a2 vars macros tl-types subs) 
                      (typecheck-defns (expand-includes (list #'body))
                                       tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) #t
