@@ -728,7 +728,7 @@
        ;; identifier, and so that (in the macro of a macro-defining macro)
        ;; we get expansions that refer to those identifiers:
        (set! module-level-expansions
-             (cons (cons stx (syntax-local-introduce result))
+             (cons (cons stx (syntax-local-introduce (disarm result)))
                    module-level-expansions)))
      (if (syntax? result)
          ;; Insert a `begin' wrapper so we can `local-expand' just once:
