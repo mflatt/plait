@@ -1085,12 +1085,18 @@
                                   #:unless (syntax-case defn (:)
                                              [(_ : . _) #t]
                                              [_ #f]))
+                         (define (no-local-type) (raise-syntax-error
+                                                  #f
+                                                  "local type definitions are not supported"
+                                                  defn))
                          (syntax-case defn (define: define-values:)
                            [(define: . _) defn]
                            [(define-values: . _) defn]
+                           [(define-type: . _) (no-local-type)]
+                           [(define-type-alias: . _) (no-local-type)]
                            [else (raise-syntax-error
                                   #f
-                                  "expected a function, constant, or tuple definition or a type declaration"
+                                  "expected a function definition, constant definition, tuple definition, or type declaration"
                                   defn)]))])
           (syntax/loc stx
             (local (defn ...) (#%expression e))))]))))
