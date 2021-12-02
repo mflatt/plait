@@ -1842,7 +1842,7 @@
                             (ormap (lambda (d)
                                      (and (free-identifier=? (car d) t)
                                           (begin
-                                            (unless (cadr d)
+                                            (unless (null? (cadr d))
                                               (raise-syntax-error
                                                #f
                                                "type alias constructor must be applied to types"
