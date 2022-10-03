@@ -831,8 +831,8 @@ by @racket[expr] and calls @racket[handle-expr].
 The @racket[test] form checks whether the value of the first
 @racket[expr] matches the value of the second @racket[expr], and
 reports a test failure or success. If the results of the two
-@racket[expr]s  are inexact numbers, the test passes as long
-as the difference between the number is less than @racket[0.01].
+@racket[expr]s are numbers and either is inexact, the test passes as long
+as the difference between the numbers is less than @racket[0.01].
 
 The @racket[test/exn] form checks whether the @racket[expr] raises an
 exception whose error message includes the string produced by
