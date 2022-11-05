@@ -722,7 +722,7 @@
                                  (begin
                                    (when (zero? fuel)
                                      (raise-typecheck-error (type-src (cdr p)) orig-a orig-b
-                                                            "possible cycle in type constraints; increae #:fuel to try more"))
+                                                            "possible cycle in type constraints; increase #:fuel to try more"))
                                    #f))))
                          defn-types
                          new-defn-types
