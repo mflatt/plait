@@ -2,7 +2,8 @@
 @(require (for-label (only-meta-in 0 plait))
           (for-syntax racket/base)
           scribble/racket
-          scribble/example)
+          scribble/example
+          "link.rkt")
 
 @(define-syntax-rule (define-r r:lambda r:syntax-rules)
   (begin
@@ -35,7 +36,9 @@
 The Plait language syntactically resembles the
 @racketmodname[plai] language, which is based on
 @racketmodname[racket], but the type system is close to that of
-@hyperlink["http://smlnj.org/"]{ML}.
+@hyperlink["http://smlnj.org/"]{ML}. For a quick introduction, see the
+@seclink["Tutorial"]{tutorial section} or the
+@hyperlink[tutorial-video-url]{tutorial videos}.
 
 @table-of-contents[]
 

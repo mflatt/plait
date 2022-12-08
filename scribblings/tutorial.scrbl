@@ -3,7 +3,8 @@
           racket/runtime-path
           scribble/examples
           scribble/core
-          scribble/html-properties)
+          scribble/html-properties
+          "link.rkt")
 
 @(define plait-eval (make-base-eval))
 @examples[#:hidden #:eval plait-eval (require plait)]
@@ -19,7 +20,11 @@
 
 @(define demo-link @elem[#:style (style #f (list (link-resource demo.rkt)))]{@filepath{demo.rkt}})
 
-@title[#:style 'toc]{Tutorial}
+@title[#:style 'toc #:tag "Tutorial"]{Tutorial}
+
+The
+@hyperlink[tutorial-video-url]{Plait tutorial videos}
+provide most of the same information as this section.
 
 @margin-note{For a quick refresher of the tutorial content, try @|demo-link|.}
 
