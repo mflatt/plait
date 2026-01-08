@@ -889,7 +889,7 @@ the test passes or ``bad'' if it fails.
 ]
 
 They say that no news is good news. To suppress the output for passing
-tests, so that only failing test strigger output, use
+tests, so that only failing tests trigger output, use
 @racket[(print-only-errors #t)].
 
 @interaction[
