@@ -136,7 +136,7 @@ c]}
 
 @defform/subs[#:literals (: quote)
               (define-type tyid/abs
-                (variant-id [field-id : type])
+                (variant-id [field-id : type] ...)
                 ...)
               ([tyid/abs id
                          (id '@#,racket[_arg-id] ...)])]{
