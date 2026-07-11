@@ -1,8 +1,11 @@
 #lang scribble/manual
 @(require (for-label (only-meta-in 0 plait))
           (for-syntax racket/base)
+          racket/runtime-path
           scribble/racket
           scribble/example
+          scribble/latex-properties
+          (only-in scribble/core style)
           "link.rkt")
 
 @(define-syntax-rule (define-r r:lambda r:syntax-rules)
@@ -29,7 +32,9 @@
 @(define (tutorial tag)
    @margin-note{For an introduction, see the tutorial section @secref[tag].})
 
-@title{Plait Language}
+@(define-runtime-path plait.tex "plait.tex")
+
+@title[#:style (style #f (list (make-tex-addition plait.tex)))]{Plait Language}
 
 @defmodulelang[plait]
 
